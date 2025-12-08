@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: fitbitepal-backend
+  
+  # 使用H2内存数据库(快速测试,无需安装MySQL)
+  datasource:
+    url: jdbc:h2:mem:fitbitepal
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  
+  # H2控制台
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # 每次启动重新创建表
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+  
+# JWT配置
+jwt:
+  secret: FitBitePal-Super-Secret-Key-2024-Change-This-In-Production-Min-256-Bits
+  expiration: 86400000  # 24小时(毫秒)
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.fitbitepal.backend: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+
+# 跨域配置
+cors:
+  allowed-origins: 
+    - http://localhost:19006
+    - http://localhost:8081
+    - exp://192.168.*.*:19000
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+
+
+
+

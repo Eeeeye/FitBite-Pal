@@ -1,0 +1,144 @@
+spring:
+  application:
+    name: fitbitepal-backend
+  
+  # 数据库配置
+  datasource:
+    url: jdbc:mysql://localhost:3306/fitbitepal?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: root
+    password: 123456  # 请修改为你的MySQL密码
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+  
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: update  # 自动创建/更新表结构 (生产环境改为validate)
+    show-sql: true      # 开发环境显示SQL
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false
+  
+  # Redis配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:10000}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1s
+
+  # 邮件服务
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:3030478174@qq.com}
+    password: ${MAIL_PASSWORD:wzzgjohbsbzzdebi}
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.qq.com
+            protocols: TLSv1.2 TLSv1.3
+          timeout: 15000
+          connectiontimeout: 15000
+          writetimeout: 15000
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+  
+# JWT配置
+jwt:
+  secret: FitBitePal-Super-Secret-Key-2024-Change-This-In-Production-Min-256-Bits
+  expiration: 86400000  # 24小时(毫秒)
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.fitbitepal.backend: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# 跨域配置
+cors:
+  allowed-origins: 
+    - http://localhost:19006  # Expo Web开发服务器
+    - http://localhost:8081   # React Native Metro开发服务器
+    - http://localhost:19000  # Expo开发服务器
+    - http://10.0.2.2:8080    # Android模拟器
+    - http://192.168.10.5:8081 # 真实设备Metro
+    - "*"  # ⚠️ 开发环境允许所有来源（生产环境请删除）
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+    - PATCH
+  allowed-headers: "*"
+  allow-credentials: true
+  max-age: 3600  # 预检请求缓存时间（秒）
+
+app:
+  security:
+    verification-code:
+      length: ${VERIFICATION_CODE_LENGTH:6}
+      ttl-minutes: ${VERIFICATION_CODE_TTL_MINUTES:5}
+    mail:
+      from: ${MAIL_FROM:3030478174@qq.com}
+  
+  # AI 服务配置
+  ai:
+    enabled: ${AI_ENABLED:false}  # 是否启用 AI 功能（默认关闭，使用 Mock 数据）
+    model-scope:
+      api-key: ${MODELSCOPE_API_KEY:}  # ModelScope API 密钥
+      endpoint: ${MODELSCOPE_ENDPOINT:https://api.modelscope.cn}  # ModelScope API 端点
+      timeout: ${AI_TIMEOUT:30000}  # 超时时间（毫秒）
+  
+  # 姿态识别配置
+  pose:
+    enabled: ${POSE_ENABLED:true}  # 是否启用姿态识别
+    use-ai: ${POSE_USE_AI:true}  # 是否使用AI分析（false则用Mock数据）
+    model-path: ${POSE_MODEL_PATH:}  # 姿态识别模型路径（本地模型）
+    frame-rate: ${POSE_FRAME_RATE:2}  # 每秒分析帧数
+
+# ModelScope AI 配置（视觉多模态）
+modelscope:
+  api:
+    base-url: ${MODELSCOPE_BASE_URL:https://api-inference.modelscope.cn/v1}
+    key: ${MODELSCOPE_API_KEY:ms-de60e4e6-886e-4c3f-bcbb-b5c2f30c2b16}
+    model: ${MODELSCOPE_MODEL:Qwen/Qwen3-VL-8B-Instruct}
+    enabled: ${MODELSCOPE_ENABLED:true}  # 启用 ModelScope AI
+
+# Actuator 配置 (开发环境)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+

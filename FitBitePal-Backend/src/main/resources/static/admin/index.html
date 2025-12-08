@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FitBitePal 管理后台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 20px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo {
+            padding: 0 20px 30px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .logo h1 {
+            font-size: 22px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-item {
+            padding: 12px 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-left-color: var(--primary);
+        }
+
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            padding: 30px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon.users { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .stat-icon.plans { background: linear-gradient(135deg, #10b981, #34d399); }
+        .stat-icon.foods { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .stat-icon.checkins { background: linear-gradient(135deg, #ef4444, #f87171); }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* 数据表格 */
+        .data-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 16px 24px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table th {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-admin { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .badge-user { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+        /* 按钮 */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* 搜索框 */
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0 12px;
+        }
+
+        .search-box input {
+            background: transparent;
+            border: none;
+            padding: 10px;
+            color: var(--text-primary);
+            width: 200px;
+            outline: none;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+        }
+
+        .modal-footer {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* 页面切换 */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* 加载状态 */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 操作按钮组 */
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 24px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 2000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+
+        .toast.success { border-left: 4px solid var(--secondary); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.show { display: flex; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>🏋️ FitBitePal</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item active" onclick="showPage('dashboard')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                    仪表盘
+                </li>
+                <li class="nav-item" onclick="showPage('users')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    用户管理
+                </li>
+                <li class="nav-item" onclick="showPage('foods')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    食品库
+                </li>
+                <li class="nav-item" onclick="showPage('mealsets')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+                        <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+                    </svg>
+                    套餐管理
+                </li>
+                <li class="nav-item" onclick="showPage('configs')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    系统配置
+                </li>
+            </ul>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 仪表盘页面 -->
+            <div id="dashboard" class="page active">
+                <div class="page-header">
+                    <h1 class="page-title">仪表盘</h1>
+                    <span style="color: var(--text-secondary)">欢迎回来，管理员</span>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon users">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="totalUsers">-</div>
+                        <div class="stat-label">总用户数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon plans">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="totalPlans">-</div>
+                        <div class="stat-label">训练计划数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon foods">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="totalFoods">-</div>
+                        <div class="stat-label">食品库条目</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon checkins">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="todayCheckIns">-</div>
+                        <div class="stat-label">今日打卡</div>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <div class="card-header">
+                        <h3 class="card-title">最近注册用户</h3>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>用户名</th>
+                                <th>邮箱</th>
+                                <th>角色</th>
+                                <th>注册时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentUsers">
+                            <tr><td colspan="5" class="loading"><div class="spinner"></div> 加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 用户管理页面 -->
+            <div id="users" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">用户管理</h1>
+                    <div class="search-box">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" placeholder="搜索用户..." id="userSearch">
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>用户名</th>
+                                <th>邮箱</th>
+                                <th>目标</th>
+                                <th>BMI</th>
+                                <th>角色</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersList">
+                            <tr><td colspan="7" class="loading"><div class="spinner"></div> 加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 食品库页面 -->
+            <div id="foods" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">食品库管理</h1>
+                    <button class="btn btn-primary" onclick="showAddFoodModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        添加食品
+                    </button>
+                </div>
+
+                <div class="data-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名称</th>
+                                <th>分类</th>
+                                <th>热量(kcal/100g)</th>
+                                <th>蛋白质(g)</th>
+                                <th>碳水(g)</th>
+                                <th>脂肪(g)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="foodsList">
+                            <tr><td colspan="8" class="loading"><div class="spinner"></div> 加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 套餐管理页面 -->
+            <div id="mealsets" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">套餐管理</h1>
+                    <div style="display: flex; gap: 12px;">
+                        <select class="form-input" id="goalFilter" onchange="loadMealSets()" style="width:150px;">
+                            <option value="">全部目标</option>
+                            <option value="Lose weight">减脂</option>
+                            <option value="Build muscle">增肌</option>
+                            <option value="Keep fit">保持健康</option>
+                        </select>
+                        <select class="form-input" id="mealFilter" onchange="loadMealSets()" style="width:120px;">
+                            <option value="">全部餐次</option>
+                            <option value="Breakfast">早餐</option>
+                            <option value="Lunch">午餐</option>
+                            <option value="Dinner">晚餐</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="showAddMealSetModal()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            添加套餐
+                        </button>
+                    </div>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">🥗</div>
+                        <div class="stat-value" id="loseWeightCount">-</div>
+                        <div class="stat-label">减脂套餐</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">💪</div>
+                        <div class="stat-value" id="buildMuscleCount">-</div>
+                        <div class="stat-label">增肌套餐</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">🍱</div>
+                        <div class="stat-value" id="keepFitCount">-</div>
+                        <div class="stat-label">健康套餐</div>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>套餐名称</th>
+                                <th>目标</th>
+                                <th>餐次</th>
+                                <th>热量</th>
+                                <th>蛋白质</th>
+                                <th>碳水</th>
+                                <th>脂肪</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mealSetsList">
+                            <tr><td colspan="9" class="loading"><div class="spinner"></div> 加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 系统配置页面 -->
+            <div id="configs" class="page">
+                <div class="page-header">
+                    <h1 class="page-title">系统配置</h1>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-outline" onclick="initDefaultConfigs()">初始化默认配置</button>
+                        <button class="btn btn-primary" onclick="showAddConfigModal()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            添加配置
+                        </button>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>配置键</th>
+                                <th>配置值</th>
+                                <th>类型</th>
+                                <th>分类</th>
+                                <th>描述</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="configsList">
+                            <tr><td colspan="6" class="loading"><div class="spinner"></div> 加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 添加/编辑套餐模态框 -->
+    <div class="modal" id="mealSetModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="mealSetModalTitle">添加套餐</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('mealSetModal')">✕</button>
+            </div>
+            <input type="hidden" id="editMealSetId" value="">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">套餐名称（中文）*</label>
+                        <input type="text" class="form-input" id="mealSetName" placeholder="例：燕麦粥配蓝莓">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">套餐名称（英文）*</label>
+                        <input type="text" class="form-input" id="mealSetNameEn" placeholder="e.g. Oatmeal with Blueberries">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">适用目标</label>
+                        <select class="form-input" id="mealSetGoalType">
+                            <option value="Lose weight">减脂</option>
+                            <option value="Build muscle">增肌</option>
+                            <option value="Keep fit">保持健康</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">餐次</label>
+                        <select class="form-input" id="mealSetMealType">
+                            <option value="Breakfast">早餐</option>
+                            <option value="Lunch">午餐</option>
+                            <option value="Dinner">晚餐</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">食材配方 - 中文 (JSON格式)</label>
+                    <textarea class="form-input" id="mealSetIngredients" rows="3" placeholder='[{"name":"燕麦","amount":"50g"},{"name":"蓝莓","amount":"30g"}]'></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">食材配方 - 英文 (JSON格式)</label>
+                    <textarea class="form-input" id="mealSetIngredientsEn" rows="3" placeholder='[{"name":"Oatmeal","amount":"50g"},{"name":"Blueberry","amount":"30g"}]'></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">热量 (kcal)</label>
+                        <input type="number" class="form-input" id="mealSetCalories" placeholder="280">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">蛋白质 (g)</label>
+                        <input type="number" class="form-input" id="mealSetProtein" placeholder="12">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">碳水 (g)</label>
+                        <input type="number" class="form-input" id="mealSetCarbs" placeholder="45">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">脂肪 (g)</label>
+                        <input type="number" class="form-input" id="mealSetFat" placeholder="6">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('mealSetModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveMealSet()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑食品模态框 -->
+    <div class="modal" id="foodModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="foodModalTitle">添加食品</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('foodModal')">✕</button>
+            </div>
+            <input type="hidden" id="editFoodId" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">食品名称 (中文)</label>
+                    <input type="text" class="form-input" id="foodName" placeholder="例：白米饭">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">食品名称 (英文)</label>
+                    <input type="text" class="form-input" id="foodNameEn" placeholder="例：White Rice">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">分类</label>
+                    <select class="form-input" id="foodCategory">
+                        <option value="主食">主食</option>
+                        <option value="蔬菜">蔬菜</option>
+                        <option value="水果">水果</option>
+                        <option value="肉类">肉类</option>
+                        <option value="海鲜">海鲜</option>
+                        <option value="蛋奶">蛋奶</option>
+                        <option value="饮品">饮品</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">热量 (kcal/100g)</label>
+                        <input type="number" class="form-input" id="foodCalories" placeholder="116">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">蛋白质 (g/100g)</label>
+                        <input type="number" step="0.1" class="form-input" id="foodProtein" placeholder="2.6">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">碳水化合物 (g/100g)</label>
+                        <input type="number" step="0.1" class="form-input" id="foodCarbs" placeholder="25.6">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">脂肪 (g/100g)</label>
+                        <input type="number" step="0.1" class="form-input" id="foodFat" placeholder="0.3">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">识别关键词（逗号分隔）</label>
+                    <input type="text" class="form-input" id="foodKeywords" placeholder="米饭,白饭,蒸饭">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('foodModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveFood()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加配置模态框 -->
+    <div class="modal" id="configModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>添加配置</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('configModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">配置键</label>
+                    <input type="text" class="form-input" id="configKey" placeholder="例：pose.confidence.threshold">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">配置值</label>
+                    <input type="text" class="form-input" id="configValue" placeholder="例：0.7">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">类型</label>
+                        <select class="form-input" id="configType">
+                            <option value="STRING">STRING</option>
+                            <option value="INTEGER">INTEGER</option>
+                            <option value="DOUBLE">DOUBLE</option>
+                            <option value="BOOLEAN">BOOLEAN</option>
+                            <option value="JSON">JSON</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">分类</label>
+                        <select class="form-input" id="configCategory">
+                            <option value="AI_MODEL">AI模型</option>
+                            <option value="BUSINESS_RULE">业务规则</option>
+                            <option value="SYSTEM">系统</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <input type="text" class="form-input" id="configDesc" placeholder="配置说明">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('configModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API_BASE = '/api/admin';
+
+        // 显示页面
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            event.target.closest('.nav-item').classList.add('active');
+
+            // 加载对应数据
+            if (pageId === 'dashboard') loadDashboard();
+            else if (pageId === 'users') loadUsers();
+            else if (pageId === 'foods') loadFoods();
+            else if (pageId === 'mealsets') loadMealSets();
+            else if (pageId === 'configs') loadConfigs();
+        }
+
+        // 显示 Toast
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // 模态框
+        function showAddFoodModal() {
+            // 重置表单为添加模式
+            document.getElementById('foodModalTitle').textContent = '添加食品';
+            document.getElementById('editFoodId').value = '';
+            document.getElementById('foodName').value = '';
+            document.getElementById('foodNameEn').value = '';
+            document.getElementById('foodCategory').value = '主食';
+            document.getElementById('foodCalories').value = '';
+            document.getElementById('foodProtein').value = '';
+            document.getElementById('foodCarbs').value = '';
+            document.getElementById('foodFat').value = '';
+            document.getElementById('foodKeywords').value = '';
+            document.getElementById('foodModal').classList.add('active');
+        }
+
+        // 编辑食品
+        async function editFood(foodId) {
+            try {
+                // 获取食品详情
+                const res = await fetch(API_BASE + '/foods?size=100');
+                const data = await res.json();
+                if (data.success && data.data.foods) {
+                    const food = data.data.foods.find(f => f.id === foodId);
+                    if (food) {
+                        // 填充表单
+                        document.getElementById('foodModalTitle').textContent = '编辑食品';
+                        document.getElementById('editFoodId').value = food.id;
+                        document.getElementById('foodName').value = food.name || '';
+                        document.getElementById('foodNameEn').value = food.nameEn || '';
+                        document.getElementById('foodCategory').value = food.category || '主食';
+                        document.getElementById('foodCalories').value = food.calories || '';
+                        document.getElementById('foodProtein').value = food.protein || '';
+                        document.getElementById('foodCarbs').value = food.carbs || '';
+                        document.getElementById('foodFat').value = food.fat || '';
+                        document.getElementById('foodKeywords').value = food.keywords || '';
+                        document.getElementById('foodModal').classList.add('active');
+                    } else {
+                        showToast('未找到食品数据', 'error');
+                    }
+                }
+            } catch (e) {
+                showToast('加载食品数据失败: ' + e.message, 'error');
+            }
+        }
+
+        function showAddConfigModal() {
+            const modal = document.getElementById('configModal');
+            // 清除编辑状态
+            delete modal.dataset.editId;
+            // 重置表单
+            document.getElementById('configKey').value = '';
+            document.getElementById('configValue').value = '';
+            document.getElementById('configType').value = 'STRING';
+            document.getElementById('configCategory').value = 'AI模型';
+            document.getElementById('configDesc').value = '';
+            modal.classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        // 加载仪表盘
+        async function loadDashboard() {
+            try {
+                const res = await fetch(API_BASE + '/dashboard');
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('totalUsers').textContent = data.data.totalUsers || 0;
+                    document.getElementById('totalPlans').textContent = data.data.totalTrainingPlans || 0;
+                    document.getElementById('totalFoods').textContent = data.data.totalFoodItems || 0;
+                    document.getElementById('todayCheckIns').textContent = data.data.todayCheckIns || 0;
+                }
+
+                // 加载最近用户
+                const usersRes = await fetch(API_BASE + '/users?size=5');
+                const usersData = await usersRes.json();
+                if (usersData.success && usersData.data.users) {
+                    const tbody = document.getElementById('recentUsers');
+                    tbody.innerHTML = usersData.data.users.map(u => `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.username}</td>
+                            <td>${u.email}</td>
+                            <td><span class="badge badge-${u.role?.toLowerCase() || 'user'}">${u.role || 'USER'}</span></td>
+                            <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('加载仪表盘失败:', e);
+            }
+        }
+
+        // 加载用户列表
+        async function loadUsers() {
+            try {
+                const res = await fetch(API_BASE + '/users?size=50');
+                const data = await res.json();
+                if (data.success && data.data.users) {
+                    const tbody = document.getElementById('usersList');
+                    tbody.innerHTML = data.data.users.map(u => `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.username}</td>
+                            <td>${u.email}</td>
+                            <td>${u.goal || '-'}</td>
+                            <td>${u.bmi ? u.bmi.toFixed(1) : '-'}</td>
+                            <td><span class="badge badge-${u.role?.toLowerCase() || 'user'}">${u.role || 'USER'}</span></td>
+                            <td class="action-btns">
+                                <button class="btn btn-outline btn-sm" onclick="viewUser(${u.id})">查看</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">删除</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('加载用户失败:', e);
+            }
+        }
+
+        // 查看用户详情
+        async function viewUser(userId) {
+            alert('用户详情功能开发中，用户ID: ' + userId);
+        }
+
+        // 删除用户
+        async function deleteUser(userId) {
+            if (!confirm('确定要删除这个用户吗？此操作不可恢复！')) return;
+            try {
+                const res = await fetch(API_BASE + '/users/' + userId, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('用户已删除');
+                    loadUsers();
+                } else {
+                    showToast(data.message || '删除失败', 'error');
+                }
+            } catch (e) {
+                showToast('删除失败: ' + e.message, 'error');
+            }
+        }
+
+        // 加载食品列表
+        async function loadFoods() {
+            try {
+                const res = await fetch(API_BASE + '/foods?size=100');
+                const data = await res.json();
+                if (data.success && data.data.foods) {
+                    const tbody = document.getElementById('foodsList');
+                    if (data.data.foods.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无食品数据，点击"添加食品"开始添加</td></tr>';
+                    } else {
+                        tbody.innerHTML = data.data.foods.map(f => `
+                            <tr>
+                                <td>${f.id}</td>
+                                <td>${f.name}</td>
+                                <td>${f.category || '-'}</td>
+                                <td>${f.calories || '-'}</td>
+                                <td>${f.protein || '-'}</td>
+                                <td>${f.carbs || '-'}</td>
+                                <td>${f.fat || '-'}</td>
+                                <td class="action-btns">
+                                    <button class="btn btn-outline btn-sm" onclick="editFood(${f.id})">编辑</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteFood(${f.id})">删除</button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('加载食品失败:', e);
+            }
+        }
+
+        // 加载套餐列表
+        async function loadMealSets() {
+            try {
+                const goalType = document.getElementById('goalFilter')?.value || '';
+                const mealType = document.getElementById('mealFilter')?.value || '';
+                let url = API_BASE + '/meal-sets';
+                const params = [];
+                if (goalType) params.push('goalType=' + encodeURIComponent(goalType));
+                if (mealType) params.push('mealType=' + encodeURIComponent(mealType));
+                if (params.length > 0) url += '?' + params.join('&');
+
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.success && data.data) {
+                    // 更新统计
+                    document.getElementById('loseWeightCount').textContent = data.data.loseWeightCount || 0;
+                    document.getElementById('buildMuscleCount').textContent = data.data.buildMuscleCount || 0;
+                    document.getElementById('keepFitCount').textContent = data.data.keepFitCount || 0;
+
+                    const tbody = document.getElementById('mealSetsList');
+                    const mealSets = data.data.mealSets || [];
+                    if (mealSets.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无套餐数据</td></tr>';
+                    } else {
+                        const goalLabels = {'Lose weight': '🥗 减脂', 'Build muscle': '💪 增肌', 'Keep fit': '🍱 健康'};
+                        const mealLabels = {'Breakfast': '🌅 早餐', 'Lunch': '☀️ 午餐', 'Dinner': '🌙 晚餐'};
+                        tbody.innerHTML = mealSets.map(m => `
+                            <tr>
+                                <td>${m.id}</td>
+                                <td><strong>${m.name}</strong></td>
+                                <td>${goalLabels[m.goalType] || m.goalType}</td>
+                                <td>${mealLabels[m.mealType] || m.mealType}</td>
+                                <td>${m.calories} kcal</td>
+                                <td>${m.protein}g</td>
+                                <td>${m.carbs}g</td>
+                                <td>${m.fat}g</td>
+                                <td class="action-btns">
+                                    <button class="btn btn-outline btn-sm" onclick="editMealSet(${m.id})">编辑</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteMealSet(${m.id})">删除</button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('加载套餐失败:', e);
+            }
+        }
+
+        // 显示添加套餐模态框
+        function showAddMealSetModal() {
+            document.getElementById('mealSetModalTitle').textContent = '添加套餐';
+            document.getElementById('editMealSetId').value = '';
+            document.getElementById('mealSetName').value = '';
+            document.getElementById('mealSetNameEn').value = '';
+            document.getElementById('mealSetGoalType').value = 'Lose weight';
+            document.getElementById('mealSetMealType').value = 'Breakfast';
+            document.getElementById('mealSetIngredients').value = '';
+            document.getElementById('mealSetIngredientsEn').value = '';
+            document.getElementById('mealSetCalories').value = '';
+            document.getElementById('mealSetProtein').value = '';
+            document.getElementById('mealSetCarbs').value = '';
+            document.getElementById('mealSetFat').value = '';
+            document.getElementById('mealSetModal').classList.add('active');
+        }
+
+        // 编辑套餐
+        async function editMealSet(mealSetId) {
+            try {
+                const res = await fetch(API_BASE + '/meal-sets');
+                const data = await res.json();
+                if (data.success && data.data.mealSets) {
+                    const mealSet = data.data.mealSets.find(m => m.id === mealSetId);
+                    if (mealSet) {
+                        document.getElementById('mealSetModalTitle').textContent = '编辑套餐';
+                        document.getElementById('editMealSetId').value = mealSet.id;
+                        document.getElementById('mealSetName').value = mealSet.name || '';
+                        document.getElementById('mealSetNameEn').value = mealSet.nameEn || '';
+                        document.getElementById('mealSetGoalType').value = mealSet.goalType || 'Lose weight';
+                        document.getElementById('mealSetMealType').value = mealSet.mealType || 'Breakfast';
+                        document.getElementById('mealSetIngredients').value = mealSet.ingredients || '';
+                        document.getElementById('mealSetIngredientsEn').value = mealSet.ingredientsEn || '';
+                        document.getElementById('mealSetCalories').value = mealSet.calories || '';
+                        document.getElementById('mealSetProtein').value = mealSet.protein || '';
+                        document.getElementById('mealSetCarbs').value = mealSet.carbs || '';
+                        document.getElementById('mealSetFat').value = mealSet.fat || '';
+                        document.getElementById('mealSetModal').classList.add('active');
+                    } else {
+                        showToast('未找到套餐数据', 'error');
+                    }
+                }
+            } catch (e) {
+                showToast('加载套餐数据失败: ' + e.message, 'error');
+            }
+        }
+
+        // 保存套餐（新增或编辑）
+        async function saveMealSet() {
+            const editMealSetId = document.getElementById('editMealSetId').value;
+            const isEdit = !!editMealSetId;
+            
+            const mealSet = {
+                name: document.getElementById('mealSetName').value,
+                nameEn: document.getElementById('mealSetNameEn').value,
+                goalType: document.getElementById('mealSetGoalType').value,
+                mealType: document.getElementById('mealSetMealType').value,
+                ingredients: document.getElementById('mealSetIngredients').value,
+                ingredientsEn: document.getElementById('mealSetIngredientsEn').value,
+                calories: parseInt(document.getElementById('mealSetCalories').value) || 0,
+                protein: parseInt(document.getElementById('mealSetProtein').value) || 0,
+                carbs: parseInt(document.getElementById('mealSetCarbs').value) || 0,
+                fat: parseInt(document.getElementById('mealSetFat').value) || 0,
+                enabled: true
+            };
+
+            if (!mealSet.name) {
+                showToast('请输入套餐名称（中文）', 'error');
+                return;
+            }
+            if (!mealSet.nameEn) {
+                showToast('请输入套餐名称（英文）', 'error');
+                return;
+            }
+
+            try {
+                let url = API_BASE + '/meal-sets';
+                let method = 'POST';
+                
+                if (isEdit) {
+                    url = API_BASE + '/meal-sets/' + editMealSetId;
+                    method = 'PUT';
+                }
+                
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mealSet)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(isEdit ? '套餐更新成功' : '套餐添加成功');
+                    closeModal('mealSetModal');
+                    loadMealSets();
+                } else {
+                    showToast(data.message || (isEdit ? '更新失败' : '添加失败'), 'error');
+                }
+            } catch (e) {
+                showToast((isEdit ? '更新' : '添加') + '失败: ' + e.message, 'error');
+            }
+        }
+
+        // 删除套餐
+        async function deleteMealSet(mealSetId) {
+            if (!confirm('确定要删除这个套餐吗？删除后用户将不再收到此套餐的推荐。')) return;
+            try {
+                const res = await fetch(API_BASE + '/meal-sets/' + mealSetId, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('套餐已删除');
+                    loadMealSets();
+                } else {
+                    showToast(data.message || '删除失败', 'error');
+                }
+            } catch (e) {
+                showToast('删除失败: ' + e.message, 'error');
+            }
+        }
+
+        // 保存食品（新增或编辑）
+        async function saveFood() {
+            const editFoodId = document.getElementById('editFoodId').value;
+            const isEdit = !!editFoodId;
+            
+            const food = {
+                name: document.getElementById('foodName').value,
+                nameEn: document.getElementById('foodNameEn').value,
+                category: document.getElementById('foodCategory').value,
+                calories: parseInt(document.getElementById('foodCalories').value) || null,
+                protein: parseFloat(document.getElementById('foodProtein').value) || null,
+                carbs: parseFloat(document.getElementById('foodCarbs').value) || null,
+                fat: parseFloat(document.getElementById('foodFat').value) || null,
+                keywords: document.getElementById('foodKeywords').value,
+                enabled: true
+            };
+
+            if (!food.name) {
+                showToast('请输入食品名称', 'error');
+                return;
+            }
+
+            try {
+                let url = API_BASE + '/foods';
+                let method = 'POST';
+                
+                if (isEdit) {
+                    url = API_BASE + '/foods/' + editFoodId;
+                    method = 'PUT';
+                }
+                
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(food)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(isEdit ? '食品更新成功' : '食品添加成功');
+                    closeModal('foodModal');
+                    loadFoods();
+                } else {
+                    showToast(data.message || (isEdit ? '更新失败' : '添加失败'), 'error');
+                }
+            } catch (e) {
+                showToast((isEdit ? '更新' : '添加') + '失败: ' + e.message, 'error');
+            }
+        }
+
+        // 删除食品
+        async function deleteFood(foodId) {
+            if (!confirm('确定要删除这个食品吗？')) return;
+            try {
+                const res = await fetch(API_BASE + '/foods/' + foodId, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('食品已删除');
+                    loadFoods();
+                } else {
+                    showToast(data.message || '删除失败', 'error');
+                }
+            } catch (e) {
+                showToast('删除失败: ' + e.message, 'error');
+            }
+        }
+
+        // 加载配置列表
+        async function loadConfigs() {
+            try {
+                const res = await fetch(API_BASE + '/configs');
+                const data = await res.json();
+                if (data.success && data.data) {
+                    const tbody = document.getElementById('configsList');
+                    const configs = data.data.configs || [];
+                    if (configs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无配置，点击"初始化默认配置"添加</td></tr>';
+                    } else {
+                        tbody.innerHTML = configs.map(c => `
+                            <tr>
+                                <td><code>${c.configKey}</code></td>
+                                <td>${c.configValue}</td>
+                                <td>${c.configType || '-'}</td>
+                                <td>${c.category || '-'}</td>
+                                <td>${c.description || '-'}</td>
+                                <td class="action-btns">
+                                    <button class="btn btn-outline btn-sm" onclick="editConfig(${c.id})">编辑</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteConfig(${c.id})">删除</button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('加载配置失败:', e);
+            }
+        }
+
+        // 初始化默认配置
+        async function initDefaultConfigs() {
+            try {
+                const res = await fetch(API_BASE + '/configs/init-defaults', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('默认配置已初始化');
+                    loadConfigs();
+                }
+            } catch (e) {
+                showToast('初始化失败: ' + e.message, 'error');
+            }
+        }
+
+        // 保存配置
+        async function saveConfig() {
+            const modal = document.getElementById('configModal');
+            const editId = modal.dataset.editId;
+            const isEdit = !!editId;
+            
+            const config = {
+                configKey: document.getElementById('configKey').value,
+                configValue: document.getElementById('configValue').value,
+                configType: document.getElementById('configType').value,
+                category: document.getElementById('configCategory').value,
+                description: document.getElementById('configDesc').value
+            };
+
+            if (!config.configKey || !config.configValue) {
+                showToast('请填写配置键和值', 'error');
+                return;
+            }
+
+            try {
+                let url = API_BASE + '/configs';
+                let method = 'POST';
+                
+                if (isEdit) {
+                    url = API_BASE + '/configs/' + editId;
+                    method = 'PUT';
+                }
+                
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(isEdit ? '配置更新成功' : '配置添加成功');
+                    closeModal('configModal');
+                    // 清除编辑ID
+                    delete modal.dataset.editId;
+                    loadConfigs();
+                } else {
+                    showToast(data.message || '保存失败', 'error');
+                }
+            } catch (e) {
+                showToast('保存失败: ' + e.message, 'error');
+            }
+        }
+
+        // 删除配置
+        async function deleteConfig(idOrKey) {
+            if (!confirm('确定要删除这个配置吗？')) return;
+            try {
+                const res = await fetch(API_BASE + '/configs/' + encodeURIComponent(idOrKey), { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('配置已删除');
+                    loadConfigs();
+                } else {
+                    showToast(data.message || '删除失败', 'error');
+                }
+            } catch (e) {
+                showToast('删除失败: ' + e.message, 'error');
+            }
+        }
+
+        // 编辑配置
+        async function editConfig(configId) {
+            try {
+                const res = await fetch(API_BASE + '/configs');
+                const data = await res.json();
+                if (data.success && data.data.configs) {
+                    const config = data.data.configs.find(c => c.id === configId);
+                    if (config) {
+                        document.getElementById('configKey').value = config.configKey || '';
+                        document.getElementById('configValue').value = config.configValue || '';
+                        document.getElementById('configType').value = config.configType || 'STRING';
+                        document.getElementById('configCategory').value = config.category || 'AI模型';
+                        document.getElementById('configDesc').value = config.description || '';
+                        // 存储编辑的配置ID
+                        document.getElementById('configModal').dataset.editId = configId;
+                        document.getElementById('configModal').classList.add('active');
+                    } else {
+                        showToast('未找到配置数据', 'error');
+                    }
+                }
+            } catch (e) {
+                showToast('加载配置数据失败: ' + e.message, 'error');
+            }
+        }
+
+        // 初始加载
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,126 @@
+# FitBite Pal - Docker Compose 配置
+# 用于本地开发和测试环境
+
+version: '3.8'
+
+services:
+  # ========================================
+  # MySQL 数据库
+  # ========================================
+  mysql:
+    image: mysql:8.0
+    container_name: fitbitepal-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fitbitepal}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./FitBitePal-Backend/sql:/docker-entrypoint-initdb.d:ro
+    networks:
+      - fitbitepal-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # Redis 缓存
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: fitbitepal-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fitbitepal-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # Spring Boot 后端
+  # ========================================
+  backend:
+    build:
+      context: ./FitBitePal-Backend
+      dockerfile: Dockerfile
+    container_name: fitbitepal-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fitbitepal}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      
+      # Redis 配置
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      
+      # JPA 配置 (生产环境)
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "false"
+      
+      # JWT 配置 (请修改为安全的密钥)
+      JWT_SECRET: ${JWT_SECRET:-FitBitePal-Super-Secret-Key-2024-Production-Min-256-Bits-Change-Me}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      
+      # 邮件配置
+      SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      SPRING_MAIL_PORT: ${MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      
+      # AI 配置
+      MODELSCOPE_API_KEY: ${MODELSCOPE_API_KEY}
+      MODELSCOPE_ENABLED: ${MODELSCOPE_ENABLED:-true}
+      
+      # 日志级别
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_FITBITEPAL: INFO
+      
+      # 时区
+      TZ: Asia/Shanghai
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - fitbitepal-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# ========================================
+# 数据卷
+# ========================================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ========================================
+# 网络
+# ========================================
+networks:
+  fitbitepal-network:
+    driver: bridge
+
