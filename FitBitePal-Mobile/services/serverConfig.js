@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SERVER_CONFIG_KEY = '@fitbitepal_server_config';
 
 // 默认服务器地址（构建时的地址）
-const DEFAULT_SERVER_IP = '192.168.10.5';  // Windows 后端地址
+const DEFAULT_SERVER_IP = '192.168.8.63';  // Windows 后端地址
 const DEFAULT_SERVER_PORT = '8080';
 
 // 缓存当前配置
@@ -21,7 +21,7 @@ export const getServerConfig = async () => {
   if (cachedConfig) {
     return cachedConfig;
   }
-  
+
   try {
     const saved = await AsyncStorage.getItem(SERVER_CONFIG_KEY);
     if (saved) {
@@ -31,7 +31,7 @@ export const getServerConfig = async () => {
   } catch (error) {
     console.log('Error loading server config:', error);
   }
-  
+
   // 返回默认配置
   cachedConfig = {
     ip: DEFAULT_SERVER_IP,
@@ -107,11 +107,11 @@ export const testServerConnection = async (ipOrUrl, port = '8080', isCustomUrl =
     // IP + 端口模式
     url = `http://${ipOrUrl}:${port}/api/foods?page=0&size=1`;
   }
-  
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     const response = await fetch(url, {
       method: 'GET',
       signal: controller.signal,
@@ -119,9 +119,9 @@ export const testServerConnection = async (ipOrUrl, port = '8080', isCustomUrl =
         'Accept': 'application/json',
       },
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     // 对于需要认证的接口，401 也表示连接成功
     if (response.ok || response.status === 401) {
       return { success: true, message: '连接成功！' };
