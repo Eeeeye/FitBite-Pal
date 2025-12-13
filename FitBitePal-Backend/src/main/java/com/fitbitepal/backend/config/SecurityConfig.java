@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer; // ⚠️ 确保导入这个
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -36,13 +37,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // 🔥🔥🔥 核心修改：启用 CORS 并使用默认配置源 🔥🔥🔥
+                .cors(Customizer.withDefaults())
+                
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
+                        // 允许跨域预检请求 (OPTIONS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 公开接口白名单
                         .requestMatchers(
                                 "/auth/**",
                                 "/test/**",
@@ -60,6 +66,7 @@ public class SecurityConfig {
                                 "/admin/**",
                                 "/static/**"
                         ).permitAll()
+                        // 其他所有请求需要认证
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -67,4 +74,3 @@ public class SecurityConfig {
         return http.build();
     }
 }
-
