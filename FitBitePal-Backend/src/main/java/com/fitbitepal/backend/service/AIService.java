@@ -15,9 +15,6 @@ import java.util.List;
  * AI 服务
  * 负责食物识别和 AI 建议功能
  * 
- * TODO: 集成真实的 AI 模型（ModelScope/OpenAI）
- * 当前使用 Mock 实现用于开发和测试
- * 
  * @author FitBitePal Team
  */
 @Slf4j
@@ -26,13 +23,13 @@ import java.util.List;
 public class AIService {
     
     private final UserRepository userRepository;
-    private final ModelScopeAIService modelScopeAIService;
+    private final ArkAIService arkAIService;
     
     @Value("${app.ai.enabled:false}")
     private boolean aiEnabled;
     
-    @Value("${modelscope.api.enabled:false}")
-    private boolean modelScopeEnabled;
+    @Value("${ark.api.enabled:false}")
+    private boolean arkEnabled;
     
     /**
      * 识别食物
@@ -43,28 +40,42 @@ public class AIService {
     public FoodRecognitionResponse recognizeFood(FoodRecognitionRequest request) {
         log.info("开始识别食物: userId={}", request.getUserId());
         
-        // 如果启用了 ModelScope AI，使用真实的 AI 识别
-        if (modelScopeEnabled && modelScopeAIService.isHealthy()) {
+        if (arkEnabled && arkAIService.isHealthy()) {
             try {
-                String imageUrl = request.getImageUrl() != null ? 
-                    request.getImageUrl() : request.getImageBase64();
+                String imageInput = normalizeImageInput(request);
                 
-                String aiResult = modelScopeAIService.recognizeFood(imageUrl, null);
+                String language = "zh";
+                FoodRecognitionResponse aiResult = arkAIService.recognizeFood(imageInput, language);
                 
-                if (aiResult != null && !aiResult.isEmpty()) {
-                    log.info("ModelScope AI 识别成功");
-                    // TODO: 解析 AI 返回的 JSON 并转换为 FoodRecognitionResponse
-                    // 目前先返回 Mock 数据，后续实现 JSON 解析
-            return createMockFoodRecognition();
-        }
+                if (aiResult != null) {
+                    log.info("Ark AI 食物识别成功");
+                    return aiResult;
+                }
             } catch (Exception e) {
-                log.error("ModelScope AI 识别失败，降级到 Mock 数据", e);
+                log.error("Ark AI 识别失败，降级到 Mock 数据", e);
             }
         }
         
         // 降级方案：返回 Mock 数据
         log.warn("使用 Mock 数据");
         return createMockFoodRecognition();
+    }
+
+    private String normalizeImageInput(FoodRecognitionRequest request) {
+        if (request.getImageUrl() != null && !request.getImageUrl().isBlank()) {
+            return request.getImageUrl().trim();
+        }
+
+        if (request.getImageBase64() == null || request.getImageBase64().isBlank()) {
+            return null;
+        }
+
+        String imageBase64 = request.getImageBase64().trim();
+        if (imageBase64.startsWith("data:image")) {
+            return imageBase64;
+        }
+
+        return "data:image/jpeg;base64," + imageBase64;
     }
     
     /**
@@ -86,9 +97,30 @@ public class AIService {
             personalized = true;
         }
         
-        // TODO: 集成 ModelScope AI 生成个性化建议
-        // 当前返回 Mock 数据
-        log.warn("AI 建议功能暂使用 Mock 数据");
+        if (aiEnabled && arkEnabled && arkAIService.isHealthy()) {
+            try {
+                String advice = arkAIService.getAdvice(
+                    request.getQuestionType(),
+                    request.getQuestion(),
+                    request.getContext(),
+                    "zh"
+                );
+
+                if (advice != null && !advice.isBlank()) {
+                    return AIAdviceResponse.builder()
+                        .advice(advice)
+                        .type(request.getQuestionType())
+                        .confidence(0.9)
+                        .timestamp(LocalDateTime.now())
+                        .personalized(personalized)
+                        .build();
+                }
+            } catch (Exception e) {
+                log.error("Ark AI 建议生成失败，降级到 Mock 数据", e);
+            }
+        }
+
+        log.warn("AI 建议功能降级到 Mock 数据");
         return createMockAdvice(request.getQuestionType(), personalized);
     }
     
@@ -98,12 +130,12 @@ public class AIService {
      * @return 是否健康
      */
     public boolean isHealthy() {
-        if (!modelScopeEnabled) {
-            log.debug("ModelScope AI 服务未启用");
+        if (!arkEnabled) {
+            log.debug("Ark AI 服务未启用");
             return false;
         }
         
-        return modelScopeAIService.isHealthy();
+        return arkAIService.isHealthy();
     }
     
     // ==================== Mock 数据方法（开发阶段使用）====================
@@ -180,4 +212,3 @@ public class AIService {
                 .build();
     }
 }
-

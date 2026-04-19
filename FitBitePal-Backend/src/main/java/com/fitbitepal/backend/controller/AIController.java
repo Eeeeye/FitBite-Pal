@@ -2,7 +2,7 @@ package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.*;
 import com.fitbitepal.backend.service.AIService;
-import com.fitbitepal.backend.service.ModelScopeAIService;
+import com.fitbitepal.backend.service.ArkAIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class AIController {
     
     private final AIService aiService;
-    private final ModelScopeAIService modelScopeAIService;
+    private final ArkAIService arkAIService;
     
     /**
      * 识别食物图片
@@ -83,26 +83,48 @@ public class AIController {
     }
     
     /**
-     * 测试 ModelScope AI 连接
+     * 测试 Ark AI 连接
      * GET /api/ai/test (实际路径)
      * 
      * @return 测试结果
      */
     @GetMapping("/test")
-    public ResponseEntity<ApiResponse<String>> testModelScope() {
-        log.info("测试 ModelScope AI 连接");
+    public ResponseEntity<ApiResponse<String>> testArk() {
+        log.info("测试 Ark AI 连接");
         
         try {
-            boolean connected = modelScopeAIService.testConnection();
+            boolean connected = arkAIService.testConnection();
             if (connected) {
-                return ResponseEntity.ok(ApiResponse.success("ModelScope AI 连接成功！"));
+                return ResponseEntity.ok(ApiResponse.success("Ark AI 连接成功！"));
             } else {
-                return ResponseEntity.ok(ApiResponse.error(503, "ModelScope AI 连接失败"));
+                return ResponseEntity.ok(ApiResponse.error(503, "Ark AI 连接失败"));
             }
         } catch (Exception e) {
-            log.error("ModelScope AI 测试失败", e);
+            log.error("Ark AI 测试失败", e);
             return ResponseEntity.ok(ApiResponse.error(500, "测试失败: " + e.getMessage()));
         }
     }
-}
 
+    @PostMapping("/chat")
+    public ResponseEntity<ApiResponse<String>> chat(@RequestBody AIChatRequest request) {
+        log.info("收到 AI 对话请求: userId={}", request.getUserId());
+
+        try {
+            String imageInput = request.getImageUrl();
+            if ((imageInput == null || imageInput.isBlank()) && request.getImageBase64() != null && !request.getImageBase64().isBlank()) {
+                imageInput = request.getImageBase64().startsWith("data:image")
+                    ? request.getImageBase64()
+                    : "data:image/jpeg;base64," + request.getImageBase64();
+            }
+
+            String response = arkAIService.chat(request.getMessage(), imageInput, request.getLanguage());
+            if (response == null || response.isBlank()) {
+                return ResponseEntity.ok(ApiResponse.error(503, "AI 服务暂时不可用"));
+            }
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("AI 对话失败", e);
+            return ResponseEntity.ok(ApiResponse.error(500, "AI 对话失败: " + e.getMessage()));
+        }
+    }
+}

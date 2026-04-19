@@ -30,8 +30,8 @@ public class PoseRecognitionService {
     // 内存中的会话存储（生产环境应使用 Redis）
     private final Map<String, PoseSessionData> activeSessions = new ConcurrentHashMap<>();
     
-    // 注入 ModelScope AI 服务
-    private final ModelScopeAIService modelScopeAIService;
+    // 注入 Ark AI 服务
+    private final ArkAIService arkAIService;
     
     // 注入姿态会话仓库
     private final PoseSessionRepository poseSessionRepository;
@@ -103,9 +103,9 @@ public class PoseRecognitionService {
                  request.getImageBase64() != null && !request.getImageBase64().isEmpty(),
                  request.getLanguage());
         
-        // 如果启用AI且有图片数据，使用 ModelScope AI 分析
+        // 如果启用AI且有图片数据，使用 Ark AI 分析
         if (useAI && request.getImageBase64() != null && !request.getImageBase64().isEmpty()) {
-            log.info("🤖 准备调用 ModelScope AI 分析姿态... language={}", request.getLanguage());
+            log.info("🤖 准备调用 Ark AI 分析姿态... language={}", request.getLanguage());
             try {
                 PoseFeedbackResponse response = analyzeWithAI(request, session);
                 log.info("✅ AI 分析成功返回，score={}", response.getScore());
@@ -123,7 +123,7 @@ public class PoseRecognitionService {
     }
     
     /**
-     * 使用 ModelScope AI 分析姿态
+     * 使用 Ark AI 分析姿态
      * 
      * @param request 帧请求
      * @param session 会话数据
@@ -140,10 +140,10 @@ public class PoseRecognitionService {
             imageData = "data:image/jpeg;base64," + imageData;
         }
         
-        log.info("🤖 使用 ModelScope AI 分析姿态: exercise={}, frame={}, language={}", exerciseName, request.getFrameNumber(), language);
+        log.info("🤖 使用 Ark AI 分析姿态: exercise={}, frame={}, language={}", exerciseName, request.getFrameNumber(), language);
         
-        // 调用 ModelScope AI（提示词在 ModelScopeAIService 中根据语言构建）
-        String aiResult = modelScopeAIService.analyzePose(imageData, exerciseName, language); // ✨ 传递语言参数
+        // 调用 Ark AI（提示词在 ArkAIService 中根据语言构建）
+        String aiResult = arkAIService.analyzePose(imageData, exerciseName, language);
         
         log.info("📥 AI 返回原始结果: {}", aiResult != null ? aiResult.substring(0, Math.min(300, aiResult.length())) + "..." : "null");
         
@@ -730,5 +730,4 @@ public class PoseRecognitionService {
         public void setDurationSeconds(Integer durationSeconds) { this.durationSeconds = durationSeconds; }
     }
 }
-
 

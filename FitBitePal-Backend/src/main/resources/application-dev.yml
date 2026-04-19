@@ -51,9 +51,9 @@ app:
   # AI服务配置
   ai:
     enabled: ${AI_ENABLED:true}  # 开发环境默认启用AI
-    model-scope:
-      api-key: ${MODELSCOPE_API_KEY:}
-      endpoint: ${MODELSCOPE_ENDPOINT:https://api.modelscope.cn}
+    ark:
+      api-key: ${ARK_API_KEY:}
+      endpoint: ${ARK_BASE_URL:https://ark.cn-beijing.volces.com/api/coding/v3}
       timeout: ${AI_TIMEOUT:30000}
 
 # 日志配置（开发环境）
@@ -62,4 +62,3 @@ logging:
     root: INFO
     com.fitbitepal.backend: DEBUG
     org.springframework.mail: DEBUG  # 开启邮件调试日志
-

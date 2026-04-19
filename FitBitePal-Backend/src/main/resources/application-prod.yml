@@ -127,9 +127,9 @@ app:
   # AI 服务配置
   ai:
     enabled: ${AI_ENABLED:true}
-    model-scope:
-      api-key: ${MODELSCOPE_API_KEY}
-      endpoint: ${MODELSCOPE_ENDPOINT:https://api.modelscope.cn}
+    ark:
+      api-key: ${ARK_API_KEY}
+      endpoint: ${ARK_BASE_URL:https://ark.cn-beijing.volces.com/api/coding/v3}
       timeout: ${AI_TIMEOUT:30000}
   
   # 姿态识别配置
@@ -139,13 +139,13 @@ app:
     model-path: ${POSE_MODEL_PATH:}
     frame-rate: ${POSE_FRAME_RATE:2}
 
-# ModelScope AI 配置
-modelscope:
+# 火山方舟 AI 配置
+ark:
   api:
-    base-url: ${MODELSCOPE_BASE_URL:https://api-inference.modelscope.cn/v1}
-    key: ${MODELSCOPE_API_KEY}
-    model: ${MODELSCOPE_MODEL:Qwen/Qwen3-VL-8B-Instruct}
-    enabled: ${MODELSCOPE_ENABLED:true}
+    base-url: ${ARK_BASE_URL:https://ark.cn-beijing.volces.com/api/coding/v3}
+    key: ${ARK_API_KEY}
+    model: ${ARK_MODEL:doubao-seed-2.0-pro}
+    enabled: ${ARK_ENABLED:true}
 
 # Actuator 健康检查端点
 management:

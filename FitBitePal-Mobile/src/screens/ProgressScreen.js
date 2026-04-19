@@ -154,6 +154,19 @@ export const ProgressScreen = ({ navigation }) => {
     return calculateNutritionProgress() >= 100;
   };
 
+  const displayCurrentWeight = statsData.currentWeight || userProfile?.weight || 0;
+  const displayBodyFat = statsData.bodyFat || userProfile?.bodyFatRate || 0;
+  const displayAvgCalorieBurn = statsData.avgCalorieBurn || userProfile?.bmr || 0;
+  const displayNutritionScore = statsData.nutritionScore || Math.round(calculateNutritionProgress());
+  const hasRecordedProgress =
+    weightRecords.length > 0 ||
+    calorieRecords.some((record) => (record.intake || record.exerciseCalories || record.expenditure || 0) > 0) ||
+    Object.keys(completedMeals).length > 0;
+  const updatedDateLabel = new Date().toLocaleDateString(
+    currentLanguage === 'zh' ? 'zh-CN' : 'en-US',
+    { year: 'numeric', month: '2-digit', day: '2-digit' }
+  );
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.homeScrollView}>
@@ -182,10 +195,23 @@ export const ProgressScreen = ({ navigation }) => {
             {currentLanguage === 'zh' ? '数据分析' : 'Data analysis'}
           </Text>
           <Text style={styles.statsDate}>
-            {currentLanguage === 'zh' ? '更新于: 2025-10-28' : 'Updated on: 2025-10-28'}
+            {currentLanguage === 'zh' ? `更新于: ${updatedDateLabel}` : `Updated on: ${updatedDateLabel}`}
           </Text>
         </View>
         <View style={styles.divider} />
+
+        {!hasRecordedProgress && (
+          <View style={styles.emptyStateCard}>
+            <Text style={styles.emptyStateTitle}>
+              {currentLanguage === 'zh' ? '你的数据面板已准备好' : 'Your dashboard is ready'}
+            </Text>
+            <Text style={styles.emptyStateText}>
+              {currentLanguage === 'zh'
+                ? '完成一次打卡、记录一餐饮食或完成一次训练后，这里的趋势和统计会逐步丰富起来。'
+                : 'After your first check-in, meal log, or workout completion, this dashboard will start filling with trends and stats.'}
+            </Text>
+          </View>
+        )}
 
         {/* Stats Grid */}
         {loadingStats ? (
@@ -203,7 +229,7 @@ export const ProgressScreen = ({ navigation }) => {
                 resizeMode="contain"
               />
               <Text style={styles.statValue}>
-                {statsData.currentWeight?.toFixed(1) || '--'}kg
+                {displayCurrentWeight ? `${displayCurrentWeight.toFixed(1)}kg` : '--'}
               </Text>
               <Text style={styles.statLabel}>
                 {currentLanguage === 'zh' ? '当前体重' : 'Current weight'}
@@ -231,7 +257,7 @@ export const ProgressScreen = ({ navigation }) => {
                 resizeMode="contain"
               />
               <Text style={styles.statValue}>
-                {statsData.bodyFat?.toFixed(1) || '--'}%
+                {displayBodyFat ? `${displayBodyFat.toFixed(1)}%` : '--'}
               </Text>
               <Text style={styles.statLabel}>
                 {currentLanguage === 'zh' ? '体脂率' : 'Body fat rate'}
@@ -259,7 +285,7 @@ export const ProgressScreen = ({ navigation }) => {
                 resizeMode="contain"
               />
               <Text style={styles.statValue}>
-                {statsData.avgCalorieBurn || '--'}kcal
+                {displayAvgCalorieBurn ? `${displayAvgCalorieBurn}kcal` : '--'}
               </Text>
               <Text style={styles.statLabel}>
                 {currentLanguage === 'zh' ? '日均消耗' : 'Daily mean\nconsumption'}
@@ -284,7 +310,7 @@ export const ProgressScreen = ({ navigation }) => {
                 resizeMode="contain"
               />
               <Text style={styles.statValue}>
-                {statsData.nutritionScore || '--'}%
+                {`${displayNutritionScore}%`}
               </Text>
               <Text style={styles.statLabel}>
                 {currentLanguage === 'zh' ? '营养完成度' : 'Completion\nnutrition score'}
@@ -313,7 +339,7 @@ export const ProgressScreen = ({ navigation }) => {
               {currentLanguage === 'zh' ? '体重趋势' : 'Weight Trend'}
             </Text>
             <Text style={styles.goalText}>
-              {currentLanguage === 'zh' ? '目标: 70kg' : 'Goal: 70kg'}
+              {currentLanguage === 'zh' ? `目标: ${goalWeightTarget}kg` : `Goal: ${goalWeightTarget}kg`}
             </Text>
           </View>
           <View style={styles.weightTrendUnderline} />
@@ -870,6 +896,27 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#444',
     marginHorizontal: 20,
+  },
+  emptyStateCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 4,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#222',
+    borderWidth: 1,
+    borderColor: '#3a3a3a',
+  },
+  emptyStateTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    color: '#b8b8b8',
+    fontSize: 13,
+    lineHeight: 20,
   },
   statsLoadingContainer: {
     padding: 40,

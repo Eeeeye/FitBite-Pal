@@ -218,8 +218,9 @@ MAIL_PASSWORD=your_authorization_code   # QQ邮箱使用授权码
 # ========================================
 # AI 服务配置（可选）
 # ========================================
-MODELSCOPE_API_KEY=your_api_key         # ModelScope API 密钥
-MODELSCOPE_ENABLED=true
+ARK_API_KEY=your_ark_api_key           # 火山方舟 API 密钥
+ARK_MODEL=doubao-seed-2.0-pro
+ARK_ENABLED=true
 ```
 
 ### 4.3 生成安全的 JWT 密钥

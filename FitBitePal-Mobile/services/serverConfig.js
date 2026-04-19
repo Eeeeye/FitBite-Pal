@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SERVER_CONFIG_KEY = '@fitbitepal_server_config';
 
 // 默认服务器地址（构建时的地址）
-const DEFAULT_SERVER_IP = '192.168.8.63';  // Windows 后端地址
+const DEFAULT_SERVER_IP = '10.133.13.105';  // 
 const DEFAULT_SERVER_PORT = '8080';
 
 // 缓存当前配置

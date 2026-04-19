@@ -52,7 +52,7 @@ FitBitePal 提供以下核心功能：
            ┌───────────────┼───────────────┐
            ▼               ▼               ▼
      ┌──────────┐   ┌──────────┐   ┌──────────────┐
-     │  MySQL   │   │  Redis   │   │  ModelScope  │
+     │  MySQL   │   │  Redis   │   │  Ark AI      │
      │  数据库  │   │   缓存   │   │   AI 服务    │
      └──────────┘   └──────────┘   └──────────────┘
 ```
@@ -122,8 +122,9 @@ MAIL_USERNAME=your_email@qq.com
 MAIL_PASSWORD=your_email_password
 
 # AI 服务配置（可选）
-MODELSCOPE_API_KEY=your_modelscope_api_key
-MODELSCOPE_ENABLED=true
+ARK_API_KEY=your_ark_api_key
+ARK_MODEL=doubao-seed-2.0-pro
+ARK_ENABLED=true
 ```
 
 #### 步骤 2：启动服务
@@ -741,7 +742,7 @@ UPDATE users SET role = 'ADMIN' WHERE username = 'admin_username';
 | 后端 | Spring Boot | 3.x |
 | 数据库 | MySQL | 8.0 |
 | 缓存 | Redis | 7.0 |
-| AI | ModelScope | - |
+| AI | 火山方舟 | - |
 
 ### B. 联系支持
 

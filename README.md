@@ -36,7 +36,7 @@ FitBite Pal 是一款一体化健身与饮食管理移动应用，提供：
 
 ### AI/算法
 - **姿态识别**: 关键点检测 + 角度分析
-- **食物识别**: ModelScope 视觉多模态 API
+- **食物识别**: 火山方舟视觉多模态 API
 - **计划推荐**: 基于用户画像的个性化算法
 
 ## 📁 项目结构
@@ -193,7 +193,7 @@ npx expo start
 | `spring.data.redis.host` | Redis 地址 | localhost |
 | `jwt.secret` | JWT 密钥 | 需修改 |
 | `jwt.expiration` | Token 有效期 | 24小时 |
-| `modelscope.api.key` | AI API 密钥 | 需配置 |
+| `ark.api.key` | AI API 密钥 | 需配置 |
 
 ### 前端配置 (.env)
 

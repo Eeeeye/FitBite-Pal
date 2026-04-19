@@ -1,126 +1,5 @@
-// AI服务 - 文本和图像AI API集成
-import { Alert } from 'react-native';
-
-/**
- * AI API配置
- * ModelScope Qwen3-VL-8B-Instruct 图像识别模型
- */
-const AI_API_CONFIG = {
-  baseUrl: 'https://api-inference.modelscope.cn/v1/chat/completions',
-  apiKey: 'ms-de60e4e6-886e-4c3f-bcbb-b5c2f30c2b16', // ModelScope Token
-  model: 'Qwen/Qwen3-VL-8B-Instruct',
-  timeout: 60000, // 60秒超时（图像分析可能较慢）
-};
-
-/**
- * 发送文本AI请求
- * @param {string} prompt - 提示文本
- * @param {Object} context - 上下文信息
- * @returns {Promise<string>} AI响应文本
- */
-const sendTextAIRequest = async (prompt, context = {}) => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), AI_API_CONFIG.timeout);
-
-    const response = await fetch(AI_API_CONFIG.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_API_CONFIG.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: AI_API_CONFIG.model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`AI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || '';
-  } catch (error) {
-    console.error('Text AI request error:', error);
-    throw error;
-  }
-};
-
-/**
- * 发送图像AI请求（支持图像识别）
- * @param {string} prompt - 提示文本
- * @param {string} imageUri - 图像URI（本地或网络）
- * @returns {Promise<string>} AI响应文本
- */
-const sendImageAIRequest = async (prompt, imageUri) => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), AI_API_CONFIG.timeout);
-
-    // 将本地图像转换为base64（如果是本地URI）
-    let imageUrl = imageUri;
-    if (imageUri.startsWith('file://')) {
-      // 对于本地文件，我们需要使用base64编码
-      // 注意：React Native中需要使用特定的方法来读取文件
-      const base64 = await convertImageToBase64(imageUri);
-      imageUrl = `data:image/jpeg;base64,${base64}`;
-    }
-
-    const response = await fetch(AI_API_CONFIG.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_API_CONFIG.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: AI_API_CONFIG.model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
-                },
-              },
-            ],
-          },
-        ],
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API error response:', errorText);
-      throw new Error(`AI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || '';
-  } catch (error) {
-    console.error('Image AI request error:', error);
-    throw error;
-  }
-};
+// AI服务 - 统一通过后端调用 AI
+import apiClient from '../src/api/client';
 
 /**
  * 将图像转换为base64
@@ -158,14 +37,11 @@ const convertImageToBase64 = async (uri) => {
 export const analyzePoseWithAI = async (exerciseInfo, userDescription = '') => {
   try {
     const prompt = `我正在做${exerciseInfo.name}训练。${userDescription ? `我感觉：${userDescription}。` : ''}请分析我的姿态是否正确，并给出改进建议。`;
-    
-    const context = {
+    const response = await requestAdvice('fitness', prompt, JSON.stringify({
       exerciseName: exerciseInfo.name,
       duration: exerciseInfo.duration,
       userFeedback: userDescription,
-    };
-
-    const response = await sendTextAIRequest(prompt, context);
+    }));
     return response || '姿势正确！保持当前动作，注意呼吸节奏。';
   } catch (error) {
     console.error('Pose analysis error:', error);
@@ -181,56 +57,92 @@ export const analyzePoseWithAI = async (exerciseInfo, userDescription = '') => {
  * @param {string} language - 语言 ('zh' 或 'en')
  * @returns {Promise<Object>} 食物营养信息和建议
  */
-export const analyzeFoodWithAI = async (imageUri, userProfile = {}, language = 'zh') => {
+export const analyzeFoodWithAI = async (imageUri, userProfile = {}, language = 'zh', userId = null) => {
   try {
-    // 根据语言生成不同的prompt - 增加食材信息要求
-    const prompt = language === 'zh' 
-      ? `请分析这张食物照片，识别出食物的种类，并估算其营养成分。请严格按以下格式返回（数值请直接给出数字，不要加"约"字）：
-食物名称：[食物名称]
-热量：[数值]千卡
-蛋白质：[数值]克
-碳水化合物：[数值]克
-脂肪：[数值]克
-主要食材：[食材1(份量), 食材2(份量), 食材3(份量)]
-建议：[根据用户目标"${userProfile.goal || '保持健康'}"且每日总热量目标为${userProfile.targetCalories || 2000}千卡，给出饮食建议]`
-      : `Please analyze this food photo, identify the type of food, and estimate its nutritional content. Return in the following format (use exact numbers, no approximations):
-Food name: [food name]
-Calories: [value] kcal
-Protein: [value] g
-Carbohydrates: [value] g
-Fat: [value] g
-Main ingredients: [ingredient1(amount), ingredient2(amount), ingredient3(amount)]
-Advice: [Based on user goal "${userProfile.goal || 'Keep fit'}" and target calories ${userProfile.targetCalories || 2000} kcal, provide dietary advice]`;
-
-    const response = await sendImageAIRequest(prompt, imageUri);
-    
-    console.log('AI Response:', response); // 调试日志
-    
-    // 解析AI响应中的营养信息
-    const nutritionInfo = parseFoodNutrition(response);
-    
-    // 提取食材信息
-    const ingredients = extractIngredients(response);
-    
-    return {
-      ...nutritionInfo,
-      advice: response,
-      foodName: extractFoodName(response),
-      ingredients: ingredients,
-    };
+    const backendResult = await recognizeFoodViaBackend(imageUri, userProfile, language, userId);
+    if (backendResult) {
+      return backendResult;
+    }
   } catch (error) {
     console.error('Food analysis error:', error);
-    return {
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      foodName: language === 'zh' ? '未识别' : 'Unrecognized',
-      ingredients: [],
-      advice: language === 'zh' ? '无法连接到AI服务。请检查网络连接或稍后重试。' : 'Unable to connect to AI service. Please check your network connection and try again.',
+  }
+
+  return {
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    foodName: language === 'zh' ? '未识别' : 'Unrecognized',
+    ingredients: [],
+    advice: language === 'zh' ? '无法连接到AI服务。请检查网络连接或稍后重试。' : 'Unable to connect to AI service. Please check your network connection and try again.',
+  };
+};
+
+const recognizeFoodViaBackend = async (imageUri, userProfile, language, userId) => {
+  try {
+    const payload = {
+      userId: userId || userProfile?.id || null,
     };
+
+    if (!isRemoteImageUri(imageUri)) {
+      const base64 = await convertImageToBase64(imageUri);
+      payload.imageBase64 = base64;
+    } else {
+      payload.imageUrl = imageUri;
+    }
+
+    const response = await apiClient.post('/ai/food/recognize', payload);
+    if (!response?.success || !response.data) {
+      return null;
+    }
+
+    return mapBackendFoodRecognition(response.data, userProfile, language);
+  } catch (error) {
+    console.error('Backend food recognition error:', error);
+    return null;
   }
 };
+
+const mapBackendFoodRecognition = (data, userProfile, language) => {
+  const foods = Array.isArray(data.foods) ? data.foods : [];
+  const totalNutrition = data.totalNutrition || {};
+  const primaryFood = foods[0] || {};
+  const primaryNutrition = primaryFood.nutrition || {};
+
+  const ingredients = foods.map((food) => ({
+    name: food.name,
+    amount: food.estimatedWeight ? `${Math.round(food.estimatedWeight)}g` : '',
+  }));
+
+  const calories = Math.round(totalNutrition.calories ?? primaryNutrition.calories ?? 0);
+  const protein = Math.round(totalNutrition.protein ?? primaryNutrition.protein ?? 0);
+  const carbs = Math.round(totalNutrition.carbs ?? primaryNutrition.carbs ?? 0);
+  const fat = Math.round(totalNutrition.fat ?? primaryNutrition.fat ?? 0);
+
+  return {
+    calories,
+    protein,
+    carbs,
+    fat,
+    foodName: foods.map((food) => food.name).filter(Boolean).slice(0, 2).join(' + ')
+      || primaryFood.name
+      || (language === 'zh' ? '已识别食物' : 'Recognized Food'),
+    ingredients,
+    advice: buildBackendFoodAdvice({ calories, protein, carbs, fat }, userProfile, language),
+  };
+};
+
+const buildBackendFoodAdvice = (nutrition, userProfile, language) => {
+  const goal = userProfile?.goal || (language === 'zh' ? '保持健康' : 'keep fit');
+
+  if (language === 'zh') {
+    return `已完成识别。该餐约 ${nutrition.calories} kcal，蛋白质 ${nutrition.protein}g，碳水 ${nutrition.carbs}g，脂肪 ${nutrition.fat}g。请结合你的目标“${goal}”安排全天摄入。`;
+  }
+
+  return `Recognition completed. This meal is about ${nutrition.calories} kcal with ${nutrition.protein}g protein, ${nutrition.carbs}g carbs, and ${nutrition.fat}g fat. Adjust the rest of your day based on your goal "${goal}".`;
+};
+
+const isRemoteImageUri = (uri) => /^https?:\/\//i.test(uri) || uri.startsWith('data:image');
 
 /**
  * 分析训练姿态图片
@@ -247,8 +159,7 @@ export const analyzePoseImageWithAI = async (imageUri, exerciseInfo) => {
 4. 如何改进
 
 请用简洁专业的语言回答。`;
-
-    const response = await sendImageAIRequest(prompt, imageUri);
+    const response = await requestChat(prompt, imageUri, 'zh');
     
     return {
       feedback: response,
@@ -275,7 +186,6 @@ export const analyzePoseImageWithAI = async (imageUri, exerciseInfo) => {
 export const getTrainingAdviceFromAI = async (userProfile, question = '') => {
   try {
     const prompt = `我的资料：年龄${userProfile.age}岁，身高${userProfile.height}cm，体重${userProfile.weight}kg，目标是${userProfile.goal}。${question ? `我的问题是：${question}` : '请给我训练建议。'}`;
-    
     const context = {
       age: userProfile.age,
       height: userProfile.height,
@@ -285,7 +195,7 @@ export const getTrainingAdviceFromAI = async (userProfile, question = '') => {
       question,
     };
 
-    const response = await sendTextAIRequest(prompt, context);
+    const response = await requestAdvice('fitness', prompt, JSON.stringify(context));
     return response || '保持规律训练，循序渐进，注意休息和营养补充。';
   } catch (error) {
     console.error('Training advice error:', error);
@@ -303,7 +213,6 @@ export const getTrainingAdviceFromAI = async (userProfile, question = '') => {
 export const getDietAdviceFromAI = async (userProfile, question = '') => {
   try {
     const prompt = `我的目标每日热量是${userProfile.targetCalories}卡路里，目标是${userProfile.goal}。${question ? `我的问题是：${question}` : '请给我饮食建议。'}`;
-    
     const context = {
       targetCalories: userProfile.targetCalories,
       goal: userProfile.goal,
@@ -313,7 +222,7 @@ export const getDietAdviceFromAI = async (userProfile, question = '') => {
       question,
     };
 
-    const response = await sendTextAIRequest(prompt, context);
+    const response = await requestAdvice('nutrition', prompt, JSON.stringify(context));
     return response || '保持均衡饮食，摄入足够的蛋白质、碳水和健康脂肪。';
   } catch (error) {
     console.error('Diet advice error:', error);
@@ -330,138 +239,16 @@ export const getDietAdviceFromAI = async (userProfile, question = '') => {
  */
 export const chatWithAI = async (message, imageUri = null) => {
   try {
-    let response;
-    
-    if (imageUri) {
-      // 如果有图像，使用图像AI请求
-      const prompt = message || '请描述这张图片，并提供相关的健身或饮食建议。';
-      response = await sendImageAIRequest(prompt, imageUri);
-    } else if (message) {
-      // 如果只有文本，使用文本AI请求
-      const prompt = `作为一个健身和营养AI助手，请回答：${message}`;
-      response = await sendTextAIRequest(prompt);
-    } else {
+    if (!imageUri && !message) {
       return '请输入消息或选择图片。';
     }
 
+    const response = await requestChat(message, imageUri, 'zh');
     return response || '抱歉，我现在无法回答这个问题。';
   } catch (error) {
     console.error('Chat error:', error);
     return '无法连接到AI服务。请检查网络连接或稍后重试。';
   }
-};
-
-/**
- * 从AI响应中解析食物营养信息
- * @param {string} aiResponse - AI响应文本
- * @returns {Object} 营养信息对象
- */
-const parseFoodNutrition = (aiResponse) => {
-  const nutrition = {
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-  };
-
-  try {
-    // ✅ 支持多种格式：
-    // - 热量：520 (无单位)
-    // - 热量：520千卡
-    // - 热量：约 520 千卡
-    // - Calories: 520 kcal
-    
-    // 热量匹配 - 支持无单位格式
-    const caloriesMatch = aiResponse.match(/(?:热量|Calories)[：:]\s*约?\s*(\d+(?:\.\d+)?)\s*(?:千卡|kcal|cal|大卡)?/i);
-    
-    // 蛋白质匹配 - 支持无单位格式
-    const proteinMatch = aiResponse.match(/(?:蛋白质|Protein)[：:]\s*约?\s*(\d+(?:\.\d+)?)\s*(?:克|g)?/i);
-    
-    // 碳水匹配 - 支持无单位格式
-    const carbsMatch = aiResponse.match(/(?:碳水[化合物]*|Carbohydrates?|Carbs)[：:]\s*约?\s*(\d+(?:\.\d+)?)\s*(?:克|g)?/i);
-    
-    // 脂肪匹配 - 支持无单位格式
-    const fatMatch = aiResponse.match(/(?:脂肪|Fat)[：:]\s*约?\s*(\d+(?:\.\d+)?)\s*(?:克|g)?/i);
-
-    if (caloriesMatch) nutrition.calories = Math.round(parseFloat(caloriesMatch[1]));
-    if (proteinMatch) nutrition.protein = Math.round(parseFloat(proteinMatch[1]));
-    if (carbsMatch) nutrition.carbs = Math.round(parseFloat(carbsMatch[1]));
-    if (fatMatch) nutrition.fat = Math.round(parseFloat(fatMatch[1]));
-    
-    console.log('AI Response text:', aiResponse.substring(0, 500)); // 调试：显示AI响应前500字符
-    console.log('Parsed nutrition:', nutrition); // 调试日志
-  } catch (error) {
-    console.error('Error parsing nutrition:', error);
-  }
-
-  return nutrition;
-};
-
-/**
- * 从AI响应中提取食材信息
- * @param {string} aiResponse - AI响应文本
- * @returns {Array} 食材列表
- */
-const extractIngredients = (aiResponse) => {
-  const ingredients = [];
-  
-  try {
-    // 匹配"主要食材"或"Main ingredients"后面的内容
-    const ingredientsMatch = aiResponse.match(/(?:主要食材|Main ingredients)[：:]\s*([^\n]+)/i);
-    
-    if (ingredientsMatch) {
-      const ingredientStr = ingredientsMatch[1].trim();
-      // 按逗号、顿号分割
-      const items = ingredientStr.split(/[,，、]/);
-      
-      items.forEach(item => {
-        const trimmed = item.trim();
-        if (trimmed) {
-          // 尝试提取名称和份量，如 "鸡胸肉(150g)" 或 "鸡胸肉 150g"
-          const match = trimmed.match(/^([^(\d]+)[\s(]*(\d+\s*[gG克]?)?/);
-          if (match) {
-            ingredients.push({
-              name: match[1].trim(),
-              amount: match[2] ? match[2].trim() : '',
-            });
-          } else {
-            ingredients.push({ name: trimmed, amount: '' });
-          }
-        }
-      });
-    }
-    
-    console.log('Extracted ingredients:', ingredients); // 调试日志
-  } catch (error) {
-    console.error('Error extracting ingredients:', error);
-  }
-  
-  return ingredients;
-};
-
-/**
- * 从AI响应中提取食物名称
- * @param {string} aiResponse - AI响应文本
- * @returns {string} 食物名称
- */
-const extractFoodName = (aiResponse) => {
-  try {
-    // 支持中英文格式
-    const nameMatch = aiResponse.match(/(?:食物名称|Food name)[：:]\s*([^\n]+)/i);
-    if (nameMatch) {
-      return nameMatch[1].trim();
-    }
-    
-    // 如果没有明确的食物名称标记，尝试从第一行提取
-    const firstLine = aiResponse.split('\n')[0];
-    if (firstLine.length < 50) {
-      return firstLine.trim();
-    }
-  } catch (error) {
-    console.error('Error extracting food name:', error);
-  }
-  
-  return '识别的食物';
 };
 
 /**
@@ -500,8 +287,42 @@ const extractSuggestions = (aiResponse) => {
  * @param {Object} config - 配置对象
  */
 export const configureAI = (config) => {
-  if (config.baseUrl) AI_API_CONFIG.baseUrl = config.baseUrl;
-  if (config.apiKey) AI_API_CONFIG.apiKey = config.apiKey;
-  if (config.timeout) AI_API_CONFIG.timeout = config.timeout;
+  console.log('AI configuration is handled by the backend service.', config);
 };
 
+const requestAdvice = async (questionType, question, context = '') => {
+  const response = await apiClient.post('/ai/advice', {
+    questionType,
+    question,
+    context,
+  });
+
+  if (!response?.success || !response?.data?.advice) {
+    throw new Error(response?.message || 'Failed to get AI advice');
+  }
+
+  return response.data.advice;
+};
+
+const requestChat = async (message, imageUri = null, language = 'zh') => {
+  const payload = {
+    message,
+    language,
+  };
+
+  if (imageUri) {
+    if (isRemoteImageUri(imageUri)) {
+      payload.imageUrl = imageUri;
+    } else {
+      const base64 = await convertImageToBase64(imageUri);
+      payload.imageBase64 = base64;
+    }
+  }
+
+  const response = await apiClient.post('/ai/chat', payload);
+  if (!response?.success || !response?.data) {
+    throw new Error(response?.message || 'Failed to get AI chat response');
+  }
+
+  return response.data;
+};

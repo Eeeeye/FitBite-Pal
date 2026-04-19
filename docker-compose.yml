@@ -88,8 +88,10 @@ services:
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
       
       # AI 配置
-      MODELSCOPE_API_KEY: ${MODELSCOPE_API_KEY}
-      MODELSCOPE_ENABLED: ${MODELSCOPE_ENABLED:-true}
+      ARK_API_KEY: ${ARK_API_KEY}
+      ARK_MODEL: ${ARK_MODEL}
+      ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/coding/v3}
+      ARK_ENABLED: ${ARK_ENABLED:-true}
       
       # 日志级别
       LOGGING_LEVEL_ROOT: INFO

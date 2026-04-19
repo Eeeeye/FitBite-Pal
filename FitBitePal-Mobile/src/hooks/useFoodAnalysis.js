@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { analyzeFoodWithAI } from '../../services/aiService';
 import { selectImageSource } from '../../services/cameraService';
 import { useUserProfile, useAppState } from '../contexts';
+import { useAuth } from '../contexts/AuthContext';
 
 export const useFoodAnalysis = () => {
   const { userProfile } = useUserProfile();
   const { currentLanguage } = useAppState();
+  const { userId } = useAuth();
   const [selectedImage, setSelectedImage] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
@@ -35,7 +37,8 @@ export const useFoodAnalysis = () => {
       const analysis = await analyzeFoodWithAI(
         imageUri,
         userProfile,
-        currentLanguage
+        currentLanguage,
+        userId
       );
 
       setResult(analysis);
