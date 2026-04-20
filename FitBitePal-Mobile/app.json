@@ -62,12 +62,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "extra": {
-      "eas": {
-        "projectId": "7ccfc653-9981-4c9f-8bb4-f85caf2fc1ab"
-      }
-    },
-    "owner": "qiwahhh",
+    "owner": "eeeeye",
     "plugins": [
       [
         "expo-build-properties",
@@ -82,8 +77,10 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/7ccfc653-9981-4c9f-8bb4-f85caf2fc1ab"
+    "extra": {
+      "eas": {
+        "projectId": "a9d4ce90-de91-43fb-841e-0dbf7d7f3f7f"
+      }
     }
   }
 }
