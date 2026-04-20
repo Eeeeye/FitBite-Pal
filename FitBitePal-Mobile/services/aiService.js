@@ -1,6 +1,8 @@
 // AI服务 - 统一通过后端调用 AI
 import apiClient from '../src/api/client';
 
+const AI_REQUEST_TIMEOUT_MS = 90000;
+
 /**
  * 将图像转换为base64
  * @param {string} uri - 图像URI
@@ -91,7 +93,9 @@ const recognizeFoodViaBackend = async (imageUri, userProfile, language, userId) 
       payload.imageUrl = imageUri;
     }
 
-    const response = await apiClient.post('/ai/food/recognize', payload);
+    const response = await apiClient.post('/ai/food/recognize', payload, {
+      timeout: AI_REQUEST_TIMEOUT_MS,
+    });
     if (!response?.success || !response.data) {
       return null;
     }
@@ -295,6 +299,8 @@ const requestAdvice = async (questionType, question, context = '') => {
     questionType,
     question,
     context,
+  }, {
+    timeout: AI_REQUEST_TIMEOUT_MS,
   });
 
   if (!response?.success || !response?.data?.advice) {
@@ -319,7 +325,9 @@ const requestChat = async (message, imageUri = null, language = 'zh') => {
     }
   }
 
-  const response = await apiClient.post('/ai/chat', payload);
+  const response = await apiClient.post('/ai/chat', payload, {
+    timeout: AI_REQUEST_TIMEOUT_MS,
+  });
   if (!response?.success || !response?.data) {
     throw new Error(response?.message || 'Failed to get AI chat response');
   }

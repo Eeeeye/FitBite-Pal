@@ -173,14 +173,15 @@ class ApiClient {
    * 通用请求方法
    */
   async request(method, endpoint, options = {}) {
-    const { data, params = {}, headers = {}, ...rest } = options;
+    const { data, params = {}, headers = {}, timeout: requestTimeout, ...rest } = options;
 
     const url = this.buildURL(endpoint, params);
     const requestHeaders = this.buildHeaders(headers);
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      const timeout = Number(requestTimeout ?? this.timeout);
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const response = await fetch(url, {
         method,

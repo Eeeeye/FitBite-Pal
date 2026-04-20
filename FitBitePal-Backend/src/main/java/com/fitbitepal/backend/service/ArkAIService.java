@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public class ArkAIService {
 
     @Value("${ark.api.enabled:true}")
     private boolean enabled;
+
+    @Value("${app.ai.ark.timeout:30000}")
+    private int timeoutMs;
 
     public ArkAIService() {
         this.restTemplate = new RestTemplate();
@@ -153,6 +157,8 @@ public class ArkAIService {
 
     private String sendChatCompletion(List<Map<String, Object>> content) {
         try {
+            configureTimeouts();
+
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", model);
             requestBody.put("stream", false);
@@ -195,6 +201,15 @@ public class ArkAIService {
             log.error("调用 Ark API 失败", e);
             return null;
         }
+    }
+
+    private void configureTimeouts() {
+        if (!(restTemplate.getRequestFactory() instanceof SimpleClientHttpRequestFactory factory)) {
+            return;
+        }
+
+        factory.setConnectTimeout(timeoutMs);
+        factory.setReadTimeout(timeoutMs);
     }
 
     private String buildFoodRecognitionPrompt(String language) {
