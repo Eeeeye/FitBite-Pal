@@ -3,9 +3,11 @@ package com.fitbitepal.backend.controller;
 import com.fitbitepal.backend.dto.ApiResponse;
 import com.fitbitepal.backend.model.CalorieRecord;
 import com.fitbitepal.backend.model.CheckInRecord;
+import com.fitbitepal.backend.model.CompletionRecord;
 import com.fitbitepal.backend.model.User;
 import com.fitbitepal.backend.repository.CalorieRecordRepository;
 import com.fitbitepal.backend.repository.CheckInRecordRepository;
+import com.fitbitepal.backend.repository.CompletionRecordRepository;
 import com.fitbitepal.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +24,7 @@ public class DataController {
     
     private final CalorieRecordRepository calorieRecordRepository;
     private final CheckInRecordRepository checkInRecordRepository;
+    private final CompletionRecordRepository completionRecordRepository;
     private final UserRepository userRepository;
     
     /**
@@ -148,18 +151,17 @@ public class DataController {
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusDays(days - 1);
         
-        // 获取体重数据
         List<CheckInRecord> checkIns = checkInRecordRepository.findByUserIdAndCheckInDateBetweenOrderByCheckInDateAsc(
                 userId, startDate, endDate);
-        
-        // 获取卡路里数据
         List<CalorieRecord> calorieRecords = calorieRecordRepository.findByUserIdAndRecordDateBetweenOrderByRecordDateAsc(
                 userId, startDate, endDate);
+        List<CompletionRecord> mealRecords = completionRecordRepository.findByUserIdAndItemTypeOrderByRecordDateDesc(userId, "meal")
+                .stream()
+                .filter(record -> !record.getRecordDate().isBefore(startDate) && !record.getRecordDate().isAfter(endDate))
+                .toList();
         
         Map<String, Object> statistics = new HashMap<>();
         
-        // ✅ 修复：优先从 User 表获取当前体重，确保数据统一
-        // ✅ 统一数据源：只从 User 表获取体重（重构后的逻辑）
         User user = userRepository.findById(userId).orElse(null);
         Double currentWeight = 0.0;
             
@@ -168,16 +170,18 @@ public class DataController {
         }
         
         statistics.put("currentWeight", currentWeight);
+
+        Double baselineWeight = checkIns.stream()
+                .map(CheckInRecord::getWeight)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(currentWeight);
+        statistics.put("weightChange", roundDouble(currentWeight - baselineWeight));
+
+        Double bodyFat = user != null && user.getBodyFatRate() != null ? user.getBodyFatRate() : 0.0;
+        statistics.put("bodyFat", bodyFat);
+        statistics.put("bodyFatChange", calculateBodyFatChange(checkIns, currentWeight, bodyFat));
         
-        // 体重变化：由于已删除 WeightRecord 表，无法计算历史变化
-        // 如果需要历史追踪，建议在前端缓存或使用单独的体重历史表
-            statistics.put("weightChange", 0.0);
-        
-        // 计算体脂率（模拟数据）
-        statistics.put("bodyFat", 20.5);
-        statistics.put("bodyFatChange", -0.8);
-        
-        // 计算平均卡路里消耗
         if (!calorieRecords.isEmpty()) {
             double totalExpenditure = calorieRecords.stream()
                     .mapToDouble(CalorieRecord::getCalorieExpenditure)
@@ -186,13 +190,13 @@ public class DataController {
         } else {
             statistics.put("avgCalorieBurn", 0);
         }
-        
-        // 营养分数（模拟数据）
-        statistics.put("nutritionScore", 85);
-        statistics.put("nutritionScoreChange", 5);
-        
-        // 目标体重（从最新的 CheckInRecord 获取，或使用默认值）
-        statistics.put("goalWeight", 70.0);
+
+        int nutritionScore = calculateNutritionScore(user, calorieRecords, mealRecords);
+        statistics.put("nutritionScore", nutritionScore);
+        statistics.put("nutritionScoreChange", calculateNutritionScoreChange(user, calorieRecords, mealRecords, startDate, endDate));
+
+        statistics.put("goalWeight", resolveGoalWeight(user, currentWeight));
+        statistics.put("goalBodyFat", resolveGoalBodyFat(user, bodyFat));
         
         return ResponseEntity.ok(ApiResponse.success(statistics));
     }
@@ -223,5 +227,153 @@ public class DataController {
         }
         return ResponseEntity.ok(ApiResponse.success(records));
     }
-}
 
+    private int calculateNutritionScore(User user, List<CalorieRecord> calorieRecords, List<CompletionRecord> mealRecords) {
+        List<Double> scoreParts = new ArrayList<>();
+
+        if (user != null && user.getTargetCalories() != null && user.getTargetCalories() > 0 && !calorieRecords.isEmpty()) {
+            double avgIntake = calorieRecords.stream()
+                    .mapToInt(record -> record.getCalorieIntake() == null ? 0 : record.getCalorieIntake())
+                    .average()
+                    .orElse(0);
+            double target = user.getTargetCalories();
+            double diffRatio = Math.min(1.0, Math.abs(avgIntake - target) / target);
+            scoreParts.add(100 - diffRatio * 100);
+        }
+
+        if (!mealRecords.isEmpty()) {
+            long completedMeals = mealRecords.stream().filter(record -> Boolean.TRUE.equals(record.getCompleted())).count();
+            scoreParts.add((completedMeals * 100.0) / mealRecords.size());
+        }
+
+        if (scoreParts.isEmpty()) {
+            return 0;
+        }
+
+        double avgScore = scoreParts.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        return (int) Math.round(Math.max(0, Math.min(100, avgScore)));
+    }
+
+    private double calculateBodyFatChange(List<CheckInRecord> checkIns, Double currentWeight, Double currentBodyFat) {
+        if (currentBodyFat == null || currentBodyFat <= 0 || currentWeight == null || currentWeight <= 0) {
+            return 0.0;
+        }
+
+        Double baselineWeight = checkIns.stream()
+                .map(CheckInRecord::getWeight)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(currentWeight);
+
+        if (baselineWeight == null || Objects.equals(baselineWeight, currentWeight)) {
+            return 0.0;
+        }
+
+        double weightChangeRatio = (currentWeight - baselineWeight) / currentWeight;
+        double estimatedBodyFatChange = weightChangeRatio * 35.0;
+        double clamped = Math.max(-5.0, Math.min(5.0, estimatedBodyFatChange));
+        return roundDouble(clamped);
+    }
+
+    private int calculateNutritionScoreChange(
+            User user,
+            List<CalorieRecord> calorieRecords,
+            List<CompletionRecord> mealRecords,
+            LocalDate startDate,
+            LocalDate endDate) {
+
+        List<LocalDate> dates = new ArrayList<>();
+        LocalDate cursor = startDate;
+        while (!cursor.isAfter(endDate)) {
+            dates.add(cursor);
+            cursor = cursor.plusDays(1);
+        }
+
+        if (dates.size() < 2) {
+            return 0;
+        }
+
+        Map<LocalDate, CalorieRecord> calorieMap = new HashMap<>();
+        for (CalorieRecord record : calorieRecords) {
+            calorieMap.put(record.getRecordDate(), record);
+        }
+
+        Map<LocalDate, List<CompletionRecord>> mealMap = new HashMap<>();
+        for (CompletionRecord record : mealRecords) {
+            mealMap.computeIfAbsent(record.getRecordDate(), key -> new ArrayList<>()).add(record);
+        }
+
+        int splitIndex = dates.size() / 2;
+        List<Double> firstWindowScores = new ArrayList<>();
+        List<Double> secondWindowScores = new ArrayList<>();
+
+        for (int i = 0; i < dates.size(); i++) {
+            LocalDate date = dates.get(i);
+            double dailyScore = calculateDailyNutritionScore(user, calorieMap.get(date), mealMap.getOrDefault(date, Collections.emptyList()));
+            if (i < splitIndex) {
+                firstWindowScores.add(dailyScore);
+            } else {
+                secondWindowScores.add(dailyScore);
+            }
+        }
+
+        double firstAvg = firstWindowScores.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        double secondAvg = secondWindowScores.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        return (int) Math.round(secondAvg - firstAvg);
+    }
+
+    private double calculateDailyNutritionScore(User user, CalorieRecord calorieRecord, List<CompletionRecord> mealRecords) {
+        List<Double> scoreParts = new ArrayList<>();
+
+        if (user != null && user.getTargetCalories() != null && user.getTargetCalories() > 0 && calorieRecord != null) {
+            double target = user.getTargetCalories();
+            double intake = calorieRecord.getCalorieIntake() == null ? 0 : calorieRecord.getCalorieIntake();
+            double diffRatio = Math.min(1.0, Math.abs(intake - target) / target);
+            scoreParts.add(100 - diffRatio * 100);
+        }
+
+        if (!mealRecords.isEmpty()) {
+            long completedMeals = mealRecords.stream().filter(record -> Boolean.TRUE.equals(record.getCompleted())).count();
+            scoreParts.add((completedMeals * 100.0) / mealRecords.size());
+        }
+
+        if (scoreParts.isEmpty()) {
+            return 0;
+        }
+
+        return scoreParts.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+    }
+
+    private double resolveGoalWeight(User user, Double currentWeight) {
+        if (user != null && user.getGoalWeight() != null && user.getGoalWeight() > 0) {
+            return user.getGoalWeight();
+        }
+        if (user == null || currentWeight == null || currentWeight <= 0) {
+            return 70.0;
+        }
+        if ("Lose weight".equalsIgnoreCase(user.getGoal())) {
+            return Math.max(30.0, currentWeight - 5.0);
+        }
+        if ("Build muscle".equalsIgnoreCase(user.getGoal())) {
+            return currentWeight + 3.0;
+        }
+        return currentWeight;
+    }
+
+    private double resolveGoalBodyFat(User user, Double currentBodyFat) {
+        if (user != null && user.getGoalBodyFatRate() != null && user.getGoalBodyFatRate() > 0) {
+            return user.getGoalBodyFatRate();
+        }
+        if (currentBodyFat != null && currentBodyFat > 0) {
+            return Math.max(8.0, currentBodyFat - 3.0);
+        }
+        return 18.0;
+    }
+
+    private double roundDouble(Double value) {
+        if (value == null) {
+            return 0.0;
+        }
+        return Math.round(value * 10.0) / 10.0;
+    }
+}

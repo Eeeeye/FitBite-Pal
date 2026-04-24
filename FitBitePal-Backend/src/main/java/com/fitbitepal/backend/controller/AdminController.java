@@ -142,6 +142,329 @@ public class AdminController {
     }
 
     /**
+     * 获取用户统计源数据（供管理后台修正）
+     */
+    @GetMapping("/users/{userId}/stats-data")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getUserStatsData(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "30") int days) {
+
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("User not found"));
+        }
+
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(Math.max(days - 1, 0));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("user", userOpt.get());
+        result.put("rangeStart", startDate);
+        result.put("rangeEnd", endDate);
+        result.put("checkIns", checkInRecordRepository
+                .findByUserIdAndCheckInDateBetweenOrderByCheckInDateAsc(userId, startDate, endDate));
+        result.put("exerciseCompletions", completionRecordRepository
+                .findByUserIdAndItemTypeOrderByRecordDateDesc(userId, "exercise")
+                .stream()
+                .filter(record -> !record.getRecordDate().isBefore(startDate) && !record.getRecordDate().isAfter(endDate))
+                .toList());
+        result.put("mealCompletions", completionRecordRepository
+                .findByUserIdAndItemTypeOrderByRecordDateDesc(userId, "meal")
+                .stream()
+                .filter(record -> !record.getRecordDate().isBefore(startDate) && !record.getRecordDate().isAfter(endDate))
+                .toList());
+        result.put("calorieRecords", calorieRecordRepository
+                .findByUserIdAndRecordDateBetweenOrderByRecordDateAsc(userId, startDate, endDate));
+
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @PostMapping("/users/{userId}/check-ins")
+    public ResponseEntity<ApiResponse<CheckInRecord>> saveUserCheckIn(
+            @PathVariable Long userId,
+            @RequestBody Map<String, Object> request) {
+
+        User user = requireUser(userId);
+        LocalDate checkInDate = parseLocalDate(request.get("checkInDate"));
+
+        CheckInRecord record = checkInRecordRepository.findByUserIdAndCheckInDate(userId, checkInDate)
+                .orElseGet(CheckInRecord::new);
+
+        record.setUserId(userId);
+        record.setCheckInDate(checkInDate);
+        record.setWeight(parseDoubleNullable(request.get("weight")));
+        record.setHeight(parseDoubleNullable(request.get("height")));
+
+        CheckInRecord saved = checkInRecordRepository.save(record);
+        syncCurrentWeightForToday(user, checkInDate, saved.getWeight());
+        userService.evictAllUserCaches(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @PutMapping("/users/{userId}/check-ins/{recordId}")
+    public ResponseEntity<ApiResponse<CheckInRecord>> updateUserCheckIn(
+            @PathVariable Long userId,
+            @PathVariable Long recordId,
+            @RequestBody Map<String, Object> request) {
+
+        User user = requireUser(userId);
+        CheckInRecord record = checkInRecordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Check-in record not found"));
+
+        if (!Objects.equals(record.getUserId(), userId)) {
+            throw new IllegalArgumentException("Check-in record does not belong to this user");
+        }
+
+        LocalDate checkInDate = request.containsKey("checkInDate")
+                ? parseLocalDate(request.get("checkInDate"))
+                : record.getCheckInDate();
+
+        checkInRecordRepository.findByUserIdAndCheckInDate(userId, checkInDate)
+                .filter(existing -> !Objects.equals(existing.getId(), recordId))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Check-in already exists for this date");
+                });
+
+        record.setCheckInDate(checkInDate);
+        if (request.containsKey("weight")) {
+            record.setWeight(parseDoubleNullable(request.get("weight")));
+        }
+        if (request.containsKey("height")) {
+            record.setHeight(parseDoubleNullable(request.get("height")));
+        }
+
+        CheckInRecord saved = checkInRecordRepository.save(record);
+        syncCurrentWeightForToday(user, checkInDate, saved.getWeight());
+        userService.evictAllUserCaches(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @DeleteMapping("/users/{userId}/check-ins/{recordId}")
+    public ResponseEntity<ApiResponse<String>> deleteUserCheckIn(
+            @PathVariable Long userId,
+            @PathVariable Long recordId) {
+
+        CheckInRecord record = checkInRecordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Check-in record not found"));
+
+        if (!Objects.equals(record.getUserId(), userId)) {
+            throw new IllegalArgumentException("Check-in record does not belong to this user");
+        }
+
+        checkInRecordRepository.delete(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success("Check-in deleted successfully"));
+    }
+
+    @PostMapping("/users/{userId}/completions")
+    public ResponseEntity<ApiResponse<CompletionRecord>> saveUserCompletion(
+            @PathVariable Long userId,
+            @RequestBody Map<String, Object> request) {
+
+        requireUser(userId);
+        LocalDate recordDate = parseLocalDate(request.get("recordDate"));
+        String itemType = parseRequiredString(request.get("itemType"), "itemType");
+        Integer itemIndex = parseIntegerRequired(request.get("itemIndex"), "itemIndex");
+
+        CompletionRecord record = completionRecordRepository
+                .findByUserIdAndRecordDateAndItemTypeAndItemIndex(userId, recordDate, itemType, itemIndex)
+                .orElseGet(CompletionRecord::new);
+
+        record.setUserId(userId);
+        record.setRecordDate(recordDate);
+        record.setItemType(itemType);
+        record.setItemIndex(itemIndex);
+        record.setCompleted(parseBooleanRequired(request.get("completed"), "completed"));
+        record.setItemName(parseStringNullable(request.get("itemName")));
+        record.setCalories(parseIntegerNullable(request.get("calories")));
+
+        CompletionRecord saved = completionRecordRepository.save(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @PutMapping("/users/{userId}/completions/{recordId}")
+    public ResponseEntity<ApiResponse<CompletionRecord>> updateUserCompletion(
+            @PathVariable Long userId,
+            @PathVariable Long recordId,
+            @RequestBody Map<String, Object> request) {
+
+        requireUser(userId);
+        CompletionRecord record = completionRecordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Completion record not found"));
+
+        if (!Objects.equals(record.getUserId(), userId)) {
+            throw new IllegalArgumentException("Completion record does not belong to this user");
+        }
+
+        LocalDate recordDate = request.containsKey("recordDate")
+                ? parseLocalDate(request.get("recordDate"))
+                : record.getRecordDate();
+        String itemType = request.containsKey("itemType")
+                ? parseRequiredString(request.get("itemType"), "itemType")
+                : record.getItemType();
+        Integer itemIndex = request.containsKey("itemIndex")
+                ? parseIntegerRequired(request.get("itemIndex"), "itemIndex")
+                : record.getItemIndex();
+
+        completionRecordRepository.findByUserIdAndRecordDateAndItemTypeAndItemIndex(userId, recordDate, itemType, itemIndex)
+                .filter(existing -> !Objects.equals(existing.getId(), recordId))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Completion record already exists for this slot");
+                });
+
+        record.setRecordDate(recordDate);
+        record.setItemType(itemType);
+        record.setItemIndex(itemIndex);
+        if (request.containsKey("completed")) {
+            record.setCompleted(parseBooleanRequired(request.get("completed"), "completed"));
+        }
+        if (request.containsKey("itemName")) {
+            record.setItemName(parseStringNullable(request.get("itemName")));
+        }
+        if (request.containsKey("calories")) {
+            record.setCalories(parseIntegerNullable(request.get("calories")));
+        }
+
+        CompletionRecord saved = completionRecordRepository.save(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @DeleteMapping("/users/{userId}/completions/{recordId}")
+    public ResponseEntity<ApiResponse<String>> deleteUserCompletion(
+            @PathVariable Long userId,
+            @PathVariable Long recordId) {
+
+        CompletionRecord record = completionRecordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Completion record not found"));
+
+        if (!Objects.equals(record.getUserId(), userId)) {
+            throw new IllegalArgumentException("Completion record does not belong to this user");
+        }
+
+        completionRecordRepository.delete(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success("Completion record deleted successfully"));
+    }
+
+    @PostMapping("/users/{userId}/calories")
+    public ResponseEntity<ApiResponse<CalorieRecord>> saveUserCalories(
+            @PathVariable Long userId,
+            @RequestBody Map<String, Object> request) {
+
+        requireUser(userId);
+        LocalDate recordDate = parseLocalDate(request.get("recordDate"));
+
+        CalorieRecord record = calorieRecordRepository.findByUserIdAndRecordDate(userId, recordDate)
+                .orElseGet(CalorieRecord::new);
+
+        record.setUserId(userId);
+        record.setRecordDate(recordDate);
+        record.setCalorieIntake(parseIntegerOrDefault(request.get("calorieIntake"), 0));
+        record.setCalorieExpenditure(parseIntegerOrDefault(request.get("calorieExpenditure"), 0));
+        record.setBaseMetabolism(parseIntegerNullable(request.get("baseMetabolism")));
+        record.setExerciseCalories(parseIntegerNullable(request.get("exerciseCalories")));
+
+        CalorieRecord saved = calorieRecordRepository.save(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @PutMapping("/users/{userId}/calories/{recordId}")
+    public ResponseEntity<ApiResponse<CalorieRecord>> updateUserCalories(
+            @PathVariable Long userId,
+            @PathVariable Long recordId,
+            @RequestBody Map<String, Object> request) {
+
+        requireUser(userId);
+        CalorieRecord record = calorieRecordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Calorie record not found"));
+
+        if (!Objects.equals(record.getUserId(), userId)) {
+            throw new IllegalArgumentException("Calorie record does not belong to this user");
+        }
+
+        LocalDate recordDate = request.containsKey("recordDate")
+                ? parseLocalDate(request.get("recordDate"))
+                : record.getRecordDate();
+
+        calorieRecordRepository.findByUserIdAndRecordDate(userId, recordDate)
+                .filter(existing -> !Objects.equals(existing.getId(), recordId))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Calorie record already exists for this date");
+                });
+
+        record.setRecordDate(recordDate);
+        if (request.containsKey("calorieIntake")) {
+            record.setCalorieIntake(parseIntegerOrDefault(request.get("calorieIntake"), 0));
+        }
+        if (request.containsKey("calorieExpenditure")) {
+            record.setCalorieExpenditure(parseIntegerOrDefault(request.get("calorieExpenditure"), 0));
+        }
+        if (request.containsKey("baseMetabolism")) {
+            record.setBaseMetabolism(parseIntegerNullable(request.get("baseMetabolism")));
+        }
+        if (request.containsKey("exerciseCalories")) {
+            record.setExerciseCalories(parseIntegerNullable(request.get("exerciseCalories")));
+        }
+
+        CalorieRecord saved = calorieRecordRepository.save(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    @DeleteMapping("/users/{userId}/calories/{recordId}")
+    public ResponseEntity<ApiResponse<String>> deleteUserCalories(
+            @PathVariable Long userId,
+            @PathVariable Long recordId) {
+
+        CalorieRecord record = calorieRecordRepository.findById(recordId)
+                .orElseThrow(() -> new IllegalArgumentException("Calorie record not found"));
+
+        if (!Objects.equals(record.getUserId(), userId)) {
+            throw new IllegalArgumentException("Calorie record does not belong to this user");
+        }
+
+        calorieRecordRepository.delete(record);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success("Calorie record deleted successfully"));
+    }
+
+    @PutMapping("/users/{userId}/metrics")
+    public ResponseEntity<ApiResponse<User>> updateUserMetrics(
+            @PathVariable Long userId,
+            @RequestBody Map<String, Object> request) {
+
+        User user = requireUser(userId);
+
+        if (request.containsKey("weight")) {
+            user.setWeight(parseDoubleNullable(request.get("weight")));
+        }
+        if (request.containsKey("height")) {
+            user.setHeight(parseDoubleNullable(request.get("height")));
+        }
+        if (request.containsKey("bodyFatRate")) {
+            user.setBodyFatRate(parseDoubleNullable(request.get("bodyFatRate")));
+        }
+        if (request.containsKey("goalWeight")) {
+            user.setGoalWeight(parseDoubleNullable(request.get("goalWeight")));
+        }
+        if (request.containsKey("goalBodyFatRate")) {
+            user.setGoalBodyFatRate(parseDoubleNullable(request.get("goalBodyFatRate")));
+        }
+        if (request.containsKey("targetCalories")) {
+            user.setTargetCalories(parseIntegerNullable(request.get("targetCalories")));
+        }
+
+        User saved = userRepository.save(user);
+        userService.evictAllUserCaches(userId);
+        return ResponseEntity.ok(ApiResponse.success(saved));
+    }
+
+    /**
      * 更新用户角色
      */
     @PutMapping("/users/{userId}/role")
@@ -579,5 +902,69 @@ public class AdminController {
         
         return ResponseEntity.ok(ApiResponse.success(stats));
     }
-}
 
+    private User requireUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    private LocalDate parseLocalDate(Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException("Date is required");
+        }
+        return LocalDate.parse(value.toString());
+    }
+
+    private Double parseDoubleNullable(Object value) {
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        return Double.valueOf(value.toString());
+    }
+
+    private Integer parseIntegerNullable(Object value) {
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        return Integer.valueOf(value.toString());
+    }
+
+    private Integer parseIntegerRequired(Object value, String fieldName) {
+        Integer parsed = parseIntegerNullable(value);
+        if (parsed == null) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return parsed;
+    }
+
+    private Integer parseIntegerOrDefault(Object value, int defaultValue) {
+        Integer parsed = parseIntegerNullable(value);
+        return parsed == null ? defaultValue : parsed;
+    }
+
+    private Boolean parseBooleanRequired(Object value, String fieldName) {
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return Boolean.valueOf(value.toString());
+    }
+
+    private String parseRequiredString(Object value, String fieldName) {
+        String parsed = parseStringNullable(value);
+        if (parsed == null || parsed.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return parsed;
+    }
+
+    private String parseStringNullable(Object value) {
+        return value == null ? null : value.toString().trim();
+    }
+
+    private void syncCurrentWeightForToday(User user, LocalDate date, Double weight) {
+        if (weight != null && LocalDate.now().equals(date)) {
+            user.setWeight(weight);
+            userRepository.save(user);
+        }
+    }
+}

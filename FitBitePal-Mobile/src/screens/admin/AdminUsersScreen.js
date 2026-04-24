@@ -108,7 +108,12 @@ export const AdminUsersScreen = ({ navigation }) => {
           </View>
         ) : (
           users.map((user) => (
-            <View key={user.id} style={styles.userCard}>
+            <TouchableOpacity
+              key={user.id}
+              style={styles.userCard}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('AdminUserStatsEditor', { user })}
+            >
               <View style={styles.userHeader}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -147,8 +152,12 @@ export const AdminUsersScreen = ({ navigation }) => {
                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
                   </Text>
                 </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>数据修正</Text>
+                  <Text style={styles.detailAction}>点击进入</Text>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -278,6 +287,11 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 14,
     color: '#FFFFFF',
+  },
+  detailAction: {
+    fontSize: 14,
+    color: '#38BDF8',
+    fontWeight: '600',
   },
 });
 

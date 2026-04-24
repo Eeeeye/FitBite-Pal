@@ -88,6 +88,8 @@ services:
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
       
       # AI 配置
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_TIMEOUT: ${AI_TIMEOUT:-90000}
       ARK_API_KEY: ${ARK_API_KEY}
       ARK_MODEL: ${ARK_MODEL}
       ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/coding/v3}

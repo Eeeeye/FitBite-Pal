@@ -19,6 +19,7 @@ const { width } = Dimensions.get('window');
 export const PoseHistoryDetailScreen = ({ navigation, route }) => {
   const { session } = route.params || {};
   const { currentLanguage } = useAppState();
+  const sessionDateValue = session?.trainingDate || session?.createdAt || session?.startTime;
 
   if (!session) {
     return (
@@ -42,7 +43,13 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
   }
 
   const formatDate = (dateString) => {
+    if (!dateString) {
+      return currentLanguage === 'zh' ? '暂无日期' : 'No date';
+    }
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return currentLanguage === 'zh' ? '暂无日期' : 'No date';
+    }
     return date.toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: 'long',
@@ -51,7 +58,13 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
   };
 
   const formatTime = (dateString) => {
+    if (!dateString) {
+      return '--:--:--';
+    }
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return '--:--:--';
+    }
     return date.toLocaleTimeString('en-US', { 
       hour12: false,
       hour: '2-digit',
@@ -85,8 +98,8 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
         {/* 训练信息卡片 */}
         <View style={styles.infoCard}>
           <Text style={styles.exerciseName}>{session.exerciseName || 'Training Session'}</Text>
-          <Text style={styles.sessionDate}>{formatDate(session.createdAt || session.startTime)}</Text>
-          <Text style={styles.sessionTime}>{formatTime(session.createdAt || session.startTime)}</Text>
+          <Text style={styles.sessionDate}>{formatDate(sessionDateValue)}</Text>
+          <Text style={styles.sessionTime}>{formatTime(sessionDateValue)}</Text>
         </View>
 
         {/* ✨ 视频播放器已移除，图片现在显示在每条日志中 */}
@@ -406,4 +419,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

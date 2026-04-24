@@ -6,6 +6,7 @@ import {
   AdminFoodsScreen,
   AdminUsersScreen,
   AdminConfigsScreen,
+  AdminUserStatsEditorScreen,
 } from '../screens/admin';
 
 const Stack = createStackNavigator();
@@ -22,6 +23,7 @@ export const AdminNavigator = () => {
       <Stack.Screen name="AdminMealSets" component={AdminMealSetsScreen} />
       <Stack.Screen name="AdminFoods" component={AdminFoodsScreen} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+      <Stack.Screen name="AdminUserStatsEditor" component={AdminUserStatsEditorScreen} />
       <Stack.Screen name="AdminConfigs" component={AdminConfigsScreen} />
     </Stack.Navigator>
   );

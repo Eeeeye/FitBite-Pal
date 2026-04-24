@@ -48,17 +48,30 @@ export const ProgressScreen = ({ navigation }) => {
     }
   }, [userId]);
 
+  useEffect(() => {
+    if (statsData.goalWeight) {
+      const nextGoalWeight = String(statsData.goalWeight);
+      setGoalWeightTarget(nextGoalWeight);
+      setTempWeightTarget(nextGoalWeight);
+    }
+    if (statsData.goalBodyFat) {
+      const nextGoalBodyFat = String(statsData.goalBodyFat);
+      setGoalBodyFatTarget(nextGoalBodyFat);
+      setTempBodyFatTarget(nextGoalBodyFat);
+    }
+  }, [statsData.goalWeight, statsData.goalBodyFat]);
+
   // ✅ 从AsyncStorage加载目标
   const loadGoals = async () => {
     try {
       const savedWeightGoal = await AsyncStorage.getItem(`weightGoal_${userId}`);
       const savedBodyFatGoal = await AsyncStorage.getItem(`bodyFatGoal_${userId}`);
       
-      if (savedWeightGoal) {
+      if (savedWeightGoal && !statsData.goalWeight) {
         setGoalWeightTarget(savedWeightGoal);
         setTempWeightTarget(savedWeightGoal);
       }
-      if (savedBodyFatGoal) {
+      if (savedBodyFatGoal && !statsData.goalBodyFat) {
         setGoalBodyFatTarget(savedBodyFatGoal);
         setTempBodyFatTarget(savedBodyFatGoal);
       }

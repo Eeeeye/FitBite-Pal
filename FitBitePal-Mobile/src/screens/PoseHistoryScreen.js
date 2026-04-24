@@ -137,7 +137,13 @@ export const PoseHistoryScreen = ({ navigation }) => {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) {
+      return currentLanguage === 'zh' ? '未知日期' : 'Unknown date';
+    }
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return currentLanguage === 'zh' ? '未知日期' : 'Unknown date';
+    }
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -163,6 +169,7 @@ export const PoseHistoryScreen = ({ navigation }) => {
 
   const renderSessionItem = ({ item }) => {
     const isSelected = selectedSessions.includes(item.sessionId);
+    const sessionDateValue = item.trainingDate || item.createdAt || item.startTime;
     
     return (
       <TouchableOpacity
@@ -194,7 +201,7 @@ export const PoseHistoryScreen = ({ navigation }) => {
         <View style={styles.sessionContent}>
           <View style={styles.sessionHeader}>
             <Text style={styles.sessionTitle}>{item.exerciseName || 'Training Session'}</Text>
-            <Text style={styles.sessionDate}>{formatDate(item.createdAt || item.startTime)}</Text>
+            <Text style={styles.sessionDate}>{formatDate(sessionDateValue)}</Text>
           </View>
           
           <View style={styles.sessionStats}>
@@ -224,11 +231,17 @@ export const PoseHistoryScreen = ({ navigation }) => {
 
           <View style={styles.sessionFooter}>
             <Text style={styles.sessionTime}>
-              {new Date(item.createdAt || item.startTime).toLocaleTimeString('en-US', { 
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+              {(() => {
+                const date = new Date(sessionDateValue);
+                if (Number.isNaN(date.getTime())) {
+                  return '--:--';
+                }
+                return date.toLocaleTimeString('en-US', {
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+              })()}
             </Text>
             {!isManageMode && (
               <Text style={styles.viewButton}>
@@ -534,4 +547,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

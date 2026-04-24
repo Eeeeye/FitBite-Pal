@@ -47,6 +47,10 @@ public class User {
     private Double height;  // cm
     
     private Double weight;  // kg
+
+    private Double goalWeight;  // kg
+
+    private Double goalBodyFatRate;  // %
     
     @Column(length = 50)
     private String goal;  // Lose weight, Get fitter, Gain more flexible
