@@ -37,7 +37,6 @@ public class DataController {
             @RequestParam Long userId,
             @RequestParam(required = false, defaultValue = "7") Integer days) {
         
-        List<Map<String, Object>> records = new ArrayList<>();
         LocalDate today = LocalDate.now();
         
         // ✅ 从User表获取当前最新体重（作为今天的实时数据）
@@ -53,7 +52,9 @@ public class DataController {
         List<CheckInRecord> checkIns = checkInRecordRepository.findByUserIdAndCheckInDateBetweenOrderByCheckInDateAsc(
                 userId, startDate, endDate);
         
-        // ✅ 返回体重数据
+        // ✅ 返回体重数据。今天即使尚未打卡，也使用 User 表当前体重补一个实时点，
+        // 避免新的一天进入图表范围后当天点位缺失。
+        Map<LocalDate, Map<String, Object>> recordsByDate = new LinkedHashMap<>();
         for (CheckInRecord checkIn : checkIns) {
             Map<String, Object> record = new HashMap<>();
             record.put("date", checkIn.getCheckInDate().toString());
@@ -69,10 +70,17 @@ public class DataController {
                 weight = checkIn.getWeight() != null ? checkIn.getWeight() : currentWeight;
             }
             record.put("weight", weight);
-            records.add(record);
+            recordsByDate.put(checkIn.getCheckInDate(), record);
+        }
+
+        if (!recordsByDate.containsKey(today) && currentWeight != null && currentWeight > 0) {
+            Map<String, Object> todayRecord = new HashMap<>();
+            todayRecord.put("date", today.toString());
+            todayRecord.put("weight", currentWeight);
+            recordsByDate.put(today, todayRecord);
         }
         
-        return ResponseEntity.ok(ApiResponse.success(records));
+        return ResponseEntity.ok(ApiResponse.success(new ArrayList<>(recordsByDate.values())));
     }
     
     /**
