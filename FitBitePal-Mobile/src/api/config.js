@@ -31,8 +31,8 @@ const BACKEND_PORT = '8080';
 // 以下内容无需修改
 // ════════════════════════════════════════════════════════════════
 
-// 自动组合 API 地址
-const API_BASE_URL = `http://${YOUR_COMPUTER_IP}:${BACKEND_PORT}/api`;
+// 自动组合 API 地址。Web/生产构建优先使用 EXPO_PUBLIC_API_URL。
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || `http://${YOUR_COMPUTER_IP}:${BACKEND_PORT}/api`;
 
 // 如果有云服务器，可以取消下面的注释并填入地址
 // const API_BASE_URL = 'https://your-server.com/api';
@@ -127,5 +127,4 @@ export const API_ENDPOINTS = {
 };
 
 export default API_CONFIG;
-
 

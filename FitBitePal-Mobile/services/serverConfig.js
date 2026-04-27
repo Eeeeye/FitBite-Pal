@@ -8,8 +8,32 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SERVER_CONFIG_KEY = '@fitbitepal_server_config';
 
 // 默认服务器地址（构建时的地址）
+const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const DEFAULT_SERVER_IP = '10.49.118.63';
 const DEFAULT_SERVER_PORT = '8080';
+
+const getDefaultServerConfig = () => {
+  if (DEFAULT_API_URL) {
+    try {
+      const url = new URL(DEFAULT_API_URL);
+      return {
+        ip: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? '443' : '80'),
+        customUrl: DEFAULT_API_URL,
+        useCustomUrl: true,
+      };
+    } catch (error) {
+      console.log('Invalid EXPO_PUBLIC_API_URL:', error);
+    }
+  }
+
+  return {
+    ip: DEFAULT_SERVER_IP,
+    port: DEFAULT_SERVER_PORT,
+    customUrl: '',
+    useCustomUrl: false,
+  };
+};
 
 // 缓存当前配置
 let cachedConfig = null;
@@ -33,12 +57,7 @@ export const getServerConfig = async () => {
   }
 
   // 返回默认配置
-  cachedConfig = {
-    ip: DEFAULT_SERVER_IP,
-    port: DEFAULT_SERVER_PORT,
-    customUrl: '',
-    useCustomUrl: false,
-  };
+  cachedConfig = getDefaultServerConfig();
   return cachedConfig;
 };
 
@@ -85,7 +104,11 @@ export const getApiBaseUrlSync = () => {
     }
     return `http://${cachedConfig.ip}:${cachedConfig.port}/api`;
   }
-  return `http://${DEFAULT_SERVER_IP}:${DEFAULT_SERVER_PORT}/api`;
+  const defaultConfig = getDefaultServerConfig();
+  if (defaultConfig.useCustomUrl && defaultConfig.customUrl) {
+    return defaultConfig.customUrl;
+  }
+  return `http://${defaultConfig.ip}:${defaultConfig.port}/api`;
 };
 
 /**
@@ -141,12 +164,7 @@ export const testServerConnection = async (ipOrUrl, port = '8080', isCustomUrl =
 export const resetServerConfig = async () => {
   try {
     await AsyncStorage.removeItem(SERVER_CONFIG_KEY);
-    cachedConfig = {
-      ip: DEFAULT_SERVER_IP,
-      port: DEFAULT_SERVER_PORT,
-      customUrl: '',
-      useCustomUrl: false,
-    };
+    cachedConfig = getDefaultServerConfig();
     return true;
   } catch (error) {
     console.log('Error resetting server config:', error);

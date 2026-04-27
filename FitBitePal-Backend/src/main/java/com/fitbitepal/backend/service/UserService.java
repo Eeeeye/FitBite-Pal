@@ -55,12 +55,12 @@ public class UserService {
     public AuthResponse register(RegisterRequest request) {
         // 检查用户名是否已存在
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already exists");
+            throw new IllegalArgumentException("Username already exists");
         }
         
         // 检查邮箱是否已存在
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new IllegalArgumentException("Email already exists");
         }
         
         // 创建新用户
@@ -86,11 +86,11 @@ public class UserService {
         User user = userRepository.findByUsernameOrEmail(
                 request.getUsernameOrEmail(), 
                 request.getUsernameOrEmail()
-        ).orElseThrow(() -> new RuntimeException("Invalid username/email or password"));
+        ).orElseThrow(() -> new IllegalArgumentException("Invalid username/email or password"));
         
         // 验证密码
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid username/email or password");
+            throw new IllegalArgumentException("Invalid username/email or password");
         }
         
         // 生成Token
@@ -574,4 +574,3 @@ public class UserService {
         return result;
     }
 }
-
