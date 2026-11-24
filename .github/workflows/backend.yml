@@ -21,6 +21,9 @@ jobs:
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1"
           --health-interval=5s --health-timeout=3s --health-retries=30
+      mailpit:
+        image: axllent/mailpit:v1.27.4
+        ports: ['1025:1025', '8025:8025']
       redis:
         image: redis:7-alpine
         ports: ['6379:6379']
@@ -35,6 +38,16 @@ jobs:
           java-version: '17'
           cache: maven
           cache-dependency-path: FitBitePal-Backend/pom.xml
+      - name: Validate the empty MySQL baseline with the production profile
+        working-directory: FitBitePal-Backend
+        env:
+          FITBITE_SCHEMA_DB_URL: jdbc:mysql://127.0.0.1:3306/fitbite_ci?allowPublicKeyRetrieval=true&useSSL=false
+          FITBITE_TEST_DB_USER: fitbite_ci
+          FITBITE_TEST_DB_PASSWORD: ci-only
+          MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          docker exec -i -e MYSQL_PWD="$FITBITE_TEST_DB_PASSWORD" "$MYSQL_CONTAINER" mysql -u "$FITBITE_TEST_DB_USER" fitbite_ci < src/main/resources/db/baseline/mysql8.sql
+          mvn -B -ntp -Dtest=MysqlSchemaBaselineTest test
       - name: Build and test with disposable MySQL and Redis
         working-directory: FitBitePal-Backend
         env:
@@ -44,4 +57,6 @@ jobs:
           FITBITE_TEST_DB_DRIVER: com.mysql.cj.jdbc.Driver
           FITBITE_TEST_DB_DIALECT: org.hibernate.dialect.MySQLDialect
           FITBITE_TEST_REDIS_PORT: '6379'
+          FITBITE_TEST_INBOX_PORT: '8025'
+          FITBITE_MAILPIT_PORT: '1025'
         run: mvn -B -ntp verify

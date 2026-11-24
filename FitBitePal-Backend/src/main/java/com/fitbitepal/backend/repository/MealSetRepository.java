@@ -24,6 +24,8 @@ public interface MealSetRepository extends JpaRepository<MealSet, Long> {
     // 查找所有启用的套餐
     List<MealSet> findByEnabledTrue();
     
+    List<MealSet> findByEnabledTrueOrderByIdAsc();
+
     // 统计启用的套餐数量
     long countByEnabledTrue();
 }

@@ -1,6 +1,9 @@
 package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.ApiResponse;
+import com.fitbitepal.backend.dto.CalorieRecordRequest;
+import com.fitbitepal.backend.service.ActivityRecordService;
+import jakarta.validation.Valid;
 import com.fitbitepal.backend.model.CalorieRecord;
 import com.fitbitepal.backend.model.CheckInRecord;
 import com.fitbitepal.backend.model.CompletionRecord;
@@ -13,8 +16,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @RestController
@@ -22,6 +27,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DataController {
     
+    private final ActivityRecordService writer;
     private final CalorieRecordRepository calorieRecordRepository;
     private final CheckInRecordRepository checkInRecordRepository;
     private final CompletionRecordRepository completionRecordRepository;
@@ -32,6 +38,7 @@ public class DataController {
      * 从打卡记录中获取每次打卡时保存的体重数据，用于折线图展示
      * 今天的数据始终与 User 表同步（实时数据）
      */
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     @GetMapping("/weight")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getWeightRecords(
             @RequestParam Long userId,
@@ -48,7 +55,7 @@ public class DataController {
         
         // ✅ 从CheckInRecord获取打卡历史（包含体重数据）
         LocalDate endDate = today;
-        LocalDate startDate = endDate.minusDays(days - 1);
+        LocalDate startDate = windowStart(endDate, days);
         List<CheckInRecord> checkIns = checkInRecordRepository.findByUserIdAndCheckInDateBetweenOrderByCheckInDateAsc(
                 userId, startDate, endDate);
         
@@ -98,20 +105,20 @@ public class DataController {
      * 获取卡路里记录（支持 query 参数）
      * 返回数据包含: date, intake, expenditure, baseMetabolism, exerciseCalories
      */
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     @GetMapping("/calories")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getCalorieRecords(
             @RequestParam Long userId,
             @RequestParam(required = false, defaultValue = "7") Integer days) {
         
         LocalDate endDate = LocalDate.now();
-        LocalDate startDate = endDate.minusDays(days - 1);
+        LocalDate startDate = windowStart(endDate, days);
         
         // 获取用户BMR
         User user = userRepository.findById(userId).orElse(null);
         Integer userBmr = (user != null && user.getBmr() != null) ? user.getBmr() : 1500;
         
-        List<CalorieRecord> calorieRecords = calorieRecordRepository.findByUserIdAndRecordDateBetweenOrderByRecordDateAsc(
-                userId, startDate, endDate);
+        List<CalorieRecord> calorieRecords = dailyCalories(userId, startDate, endDate);
         
         List<Map<String, Object>> records = new ArrayList<>();
         for (CalorieRecord cr : calorieRecords) {
@@ -131,43 +138,32 @@ public class DataController {
     /**
      * 添加卡路里记录
      */
+    @PreAuthorize("hasRole('ADMIN') or #request.userId == principal.id")
     @PostMapping("/calories")
     public ResponseEntity<ApiResponse<CalorieRecord>> addCalorieRecord(
-            @RequestBody Map<String, Object> payload) {
-        Long userId = Long.valueOf(payload.get("userId").toString());
-        
-        CalorieRecord record = new CalorieRecord();
-        record.setUserId(userId);
-        record.setCalorieIntake(payload.containsKey("intake") ? 
-                Integer.valueOf(payload.get("intake").toString()) : 0);
-        record.setCalorieExpenditure(payload.containsKey("expenditure") ? 
-                Integer.valueOf(payload.get("expenditure").toString()) : 0);
-        record.setRecordDate(LocalDate.now());
-        
-        CalorieRecord saved = calorieRecordRepository.save(record);
+            @Valid @RequestBody CalorieRecordRequest request) {
+        CalorieRecord saved = writer.createCalories(request);
         return ResponseEntity.ok(ApiResponse.success("Calorie recorded successfully", saved));
     }
     
     /**
      * 获取统计数据汇总
      */
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     @GetMapping("/statistics")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStatistics(
             @RequestParam Long userId,
             @RequestParam(required = false, defaultValue = "7") Integer days) {
         
         LocalDate endDate = LocalDate.now();
-        LocalDate startDate = endDate.minusDays(days - 1);
+        LocalDate startDate = windowStart(endDate, days);
         
         List<CheckInRecord> checkIns = checkInRecordRepository.findByUserIdAndCheckInDateBetweenOrderByCheckInDateAsc(
                 userId, startDate, endDate);
-        List<CalorieRecord> calorieRecords = calorieRecordRepository.findByUserIdAndRecordDateBetweenOrderByRecordDateAsc(
-                userId, startDate, endDate);
-        List<CompletionRecord> mealRecords = completionRecordRepository.findByUserIdAndItemTypeOrderByRecordDateDesc(userId, "meal")
-                .stream()
-                .filter(record -> !record.getRecordDate().isBefore(startDate) && !record.getRecordDate().isAfter(endDate))
-                .toList();
-        
+        List<CalorieRecord> calorieRecords = dailyCalories(userId, startDate, endDate);
+        List<CompletionRecord> mealRecords = completionRecordRepository
+                .findByUserIdAndItemTypeAndRecordDateBetweenOrderByRecordDateDesc(userId, "meal", startDate, endDate);
+
         Map<String, Object> statistics = new HashMap<>();
         
         User user = userRepository.findById(userId).orElse(null);
@@ -214,12 +210,14 @@ public class DataController {
      * @deprecated WeightRecord表已删除，使用 GET /data/weight 代替
      */
     @Deprecated
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     @GetMapping("/weight/{userId}")
     public ResponseEntity<ApiResponse<String>> getWeightRecordsLegacy(
             @PathVariable Long userId) {
         return ResponseEntity.ok(ApiResponse.success("WeightRecord表已删除，请使用 GET /data/weight?userId=" + userId));
     }
     
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     @GetMapping("/calories/{userId}")
     public ResponseEntity<ApiResponse<List<CalorieRecord>>> getCalorieRecordsLegacy(
             @PathVariable Long userId,
@@ -290,44 +288,45 @@ public class DataController {
             LocalDate startDate,
             LocalDate endDate) {
 
-        List<LocalDate> dates = new ArrayList<>();
-        LocalDate cursor = startDate;
-        while (!cursor.isAfter(endDate)) {
-            dates.add(cursor);
-            cursor = cursor.plusDays(1);
-        }
+        long days = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        long firstDays = days / 2;
+        if (firstDays == 0) return 0;
 
-        if (dates.size() < 2) {
-            return 0;
-        }
-
-        Map<LocalDate, CalorieRecord> calorieMap = new HashMap<>();
+        Map<LocalDate, CalorieRecord> caloriesByDate = new HashMap<>();
         for (CalorieRecord record : calorieRecords) {
-            calorieMap.put(record.getRecordDate(), record);
+            caloriesByDate.put(record.getRecordDate(), record);
         }
-
-        Map<LocalDate, List<CompletionRecord>> mealMap = new HashMap<>();
+        Map<LocalDate, List<CompletionRecord>> mealsByDate = new HashMap<>();
         for (CompletionRecord record : mealRecords) {
-            mealMap.computeIfAbsent(record.getRecordDate(), key -> new ArrayList<>()).add(record);
+            mealsByDate.computeIfAbsent(record.getRecordDate(), date -> new ArrayList<>()).add(record);
         }
-
-        int splitIndex = dates.size() / 2;
-        List<Double> firstWindowScores = new ArrayList<>();
-        List<Double> secondWindowScores = new ArrayList<>();
-
-        for (int i = 0; i < dates.size(); i++) {
-            LocalDate date = dates.get(i);
-            double dailyScore = calculateDailyNutritionScore(user, calorieMap.get(date), mealMap.getOrDefault(date, Collections.emptyList()));
-            if (i < splitIndex) {
-                firstWindowScores.add(dailyScore);
-            } else {
-                secondWindowScores.add(dailyScore);
-            }
+        Set<LocalDate> recordedDays = new HashSet<>(caloriesByDate.keySet());
+        recordedDays.addAll(mealsByDate.keySet());
+        LocalDate midpoint = startDate.plusDays(firstDays);
+        double firstScore = 0, secondScore = 0;
+        for (LocalDate date : recordedDays) {
+            double score = calculateDailyNutritionScore(user, caloriesByDate.get(date),
+                    mealsByDate.getOrDefault(date, List.of()));
+            if (date.isBefore(midpoint)) firstScore += score;
+            else secondScore += score;
         }
+        return (int) Math.round(secondScore / (days - firstDays) - firstScore / firstDays);
+    }
 
-        double firstAvg = firstWindowScores.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-        double secondAvg = secondWindowScores.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-        return (int) Math.round(secondAvg - firstAvg);
+    private LocalDate windowStart(LocalDate end, int days) {
+        if (days < 1 || days > ChronoUnit.DAYS.between(LocalDate.of(1000, 1, 1), end) + 1) {
+            throw new IllegalArgumentException("Invalid reporting window");
+        }
+        return end.minusDays(days - 1L);
+    }
+
+    private List<CalorieRecord> dailyCalories(Long userId, LocalDate start, LocalDate end) {
+        Map<LocalDate, CalorieRecord> latest = new LinkedHashMap<>();
+        for (CalorieRecord row : calorieRecordRepository.findByUserIdAndRecordDateBetweenOrderByRecordDateAsc(
+                userId, start, end)) {
+            latest.merge(row.getRecordDate(), row, (a, b) -> a.getId() > b.getId() ? a : b);
+        }
+        return List.copyOf(latest.values());
     }
 
     private double calculateDailyNutritionScore(User user, CalorieRecord calorieRecord, List<CompletionRecord> mealRecords) {

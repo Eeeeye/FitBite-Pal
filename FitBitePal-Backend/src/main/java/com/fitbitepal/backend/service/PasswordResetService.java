@@ -2,7 +2,6 @@ package com.fitbitepal.backend.service;
 
 import com.fitbitepal.backend.config.RedisConfig;
 import com.fitbitepal.backend.dto.ResetPasswordRequest;
-import com.fitbitepal.backend.exception.ResourceNotFoundException;
 import com.fitbitepal.backend.model.User;
 import com.fitbitepal.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,24 +18,21 @@ public class PasswordResetService {
     private final PasswordEncoder encoder;
 
     public void sendCode(String address) {
-        if (!users.existsByEmail(address)) {
-            throw new ResourceNotFoundException("Email not found");
-        }
-        email.sendVerificationCode(address);
+        users.findByEmail(address).map(User::getEmail).ifPresent(email::sendVerificationCode);
     }
 
     public boolean verifyCode(String address, String code) {
-        return email.verifyCode(address, code);
+        return users.findByEmail(address).map(user -> email.verifyCode(user.getEmail(), code)).orElse(false);
     }
 
     @Transactional
     @CacheEvict(value = RedisConfig.CACHE_USER, key = "#result")
     public Long resetPassword(ResetPasswordRequest request) {
-        if (!email.consumeCode(request.getEmail(), request.getCode())) {
+        User user = users.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired verification code"));
+        if (!email.consumeCode(user.getEmail(), request.getCode())) {
             throw new IllegalArgumentException("Invalid or expired verification code");
         }
-        User user = users.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         user.setPassword(encoder.encode(request.getNewPassword()));
         return user.getId();
     }

@@ -11,16 +11,19 @@ public class PoseEndSessionRequest {
     /**
      * 会话 ID
      */
+    @jakarta.validation.constraints.NotBlank
     private String sessionId;
     
     /**
      * 完成的重复次数
      */
+    @jakarta.validation.constraints.PositiveOrZero
     private Integer completedReps;
     
     /**
      * 总时长（秒）
      */
+    @jakarta.validation.constraints.PositiveOrZero
     private Integer durationSeconds;
     
     /**

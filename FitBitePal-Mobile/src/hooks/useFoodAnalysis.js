@@ -33,6 +33,7 @@ export const useFoodAnalysis = () => {
     }
 
     try {
+      setResult(null);
       setAnalyzing(true);
       const analysis = await analyzeFoodWithAI(
         imageUri,

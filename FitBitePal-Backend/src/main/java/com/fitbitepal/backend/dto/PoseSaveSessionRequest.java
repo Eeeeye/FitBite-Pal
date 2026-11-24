@@ -19,11 +19,14 @@ public class PoseSaveSessionRequest {
     /**
      * 会话ID
      */
+    @jakarta.validation.constraints.NotBlank
     private String sessionId;
     
     /**
      * 用户ID
      */
+    @jakarta.validation.constraints.NotNull
+    @jakarta.validation.constraints.Positive
     private Long userId;
     
     /**
@@ -34,16 +37,19 @@ public class PoseSaveSessionRequest {
     /**
      * 训练时长（秒）
      */
+    @jakarta.validation.constraints.PositiveOrZero
     private Integer duration;
     
     /**
      * 消耗卡路里
      */
+    @jakarta.validation.constraints.PositiveOrZero
     private Integer calories;
     
     /**
      * 完成组数
      */
+    @jakarta.validation.constraints.PositiveOrZero
     private Integer reps;
     
     /**

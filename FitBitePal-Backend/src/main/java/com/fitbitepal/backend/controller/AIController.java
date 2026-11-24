@@ -2,129 +2,45 @@ package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.*;
 import com.fitbitepal.backend.service.AIService;
-import com.fitbitepal.backend.service.ArkAIService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * AI 功能控制器
- * 提供食物识别和 AI 建议功能
- * 
- * @author FitBitePal Team
- */
-@Slf4j
 @RestController
 @RequestMapping("/ai")
 @RequiredArgsConstructor
 public class AIController {
-    
-    private final AIService aiService;
-    private final ArkAIService arkAIService;
-    
-    /**
-     * 识别食物图片
-     * POST /api/ai/food/recognize (实际路径)
-     * 
-     * @param request 食物识别请求（包含图片 base64 或 URL）
-     * @return 识别结果，包含食物名称、营养信息等
-     */
+    private final AIService ai;
+
+    @PreAuthorize("hasRole('ADMIN') or #request.userId == null or #request.userId == principal.id")
     @PostMapping("/food/recognize")
-    public ResponseEntity<ApiResponse<FoodRecognitionResponse>> recognizeFood(
-            @RequestBody FoodRecognitionRequest request) {
-        log.info("收到食物识别请求: userId={}", request.getUserId());
-        
-        try {
-            FoodRecognitionResponse response = aiService.recognizeFood(request);
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } catch (Exception e) {
-            log.error("食物识别失败", e);
-            return ResponseEntity.ok(ApiResponse.error(500, "食物识别失败: " + e.getMessage()));
-        }
+    public ApiResponse<FoodRecognitionResponse> recognizeFood(@RequestBody FoodRecognitionRequest request) {
+        return ApiResponse.success(ai.recognizeFood(request));
     }
-    
-    /**
-     * 获取 AI 健身/营养建议
-     * POST /api/ai/advice (实际路径)
-     * 
-     * @param request AI 建议请求
-     * @return AI 生成的个性化建议
-     */
+
+    @PreAuthorize("hasRole('ADMIN') or #request.userId == null or #request.userId == principal.id")
     @PostMapping("/advice")
-    public ResponseEntity<ApiResponse<AIAdviceResponse>> getAdvice(
-            @RequestBody AIAdviceRequest request) {
-        log.info("收到 AI 建议请求: userId={}, type={}", 
-                request.getUserId(), request.getQuestionType());
-        
-        try {
-            AIAdviceResponse response = aiService.getAdvice(request);
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } catch (Exception e) {
-            log.error("AI 建议生成失败", e);
-            return ResponseEntity.ok(ApiResponse.error(500, "AI 建议生成失败: " + e.getMessage()));
-        }
+    public ApiResponse<AIAdviceResponse> getAdvice(@RequestBody AIAdviceRequest request) {
+        return ApiResponse.success(ai.getAdvice(request));
     }
-    
-    /**
-     * 健康检查端点
-     * GET /api/ai/health (实际路径)
-     * 
-     * @return AI 服务状态
-     */
+
+    @PreAuthorize("hasRole('ADMIN') or #request.userId == null or #request.userId == principal.id")
+    @PostMapping("/chat")
+    public ApiResponse<String> chat(@RequestBody AIChatRequest request) {
+        return ApiResponse.success(ai.chat(request));
+    }
+
     @GetMapping("/health")
     public ResponseEntity<ApiResponse<String>> healthCheck() {
-        boolean healthy = aiService.isHealthy();
-        if (healthy) {
-            return ResponseEntity.ok(ApiResponse.success("AI 服务运行正常"));
-        } else {
-            return ResponseEntity.ok(ApiResponse.error(503, "AI 服务不可用"));
-        }
+        return ai.isHealthy() ? ResponseEntity.ok(ApiResponse.success("AI 服务已配置"))
+                : ResponseEntity.status(503).body(ApiResponse.error("AI 服务不可用"));
     }
-    
-    /**
-     * 测试 Ark AI 连接
-     * GET /api/ai/test (实际路径)
-     * 
-     * @return 测试结果
-     */
+
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/test")
-    public ResponseEntity<ApiResponse<String>> testArk() {
-        log.info("测试 Ark AI 连接");
-        
-        try {
-            boolean connected = arkAIService.testConnection();
-            if (connected) {
-                return ResponseEntity.ok(ApiResponse.success("Ark AI 连接成功！"));
-            } else {
-                return ResponseEntity.ok(ApiResponse.error(503, "Ark AI 连接失败"));
-            }
-        } catch (Exception e) {
-            log.error("Ark AI 测试失败", e);
-            return ResponseEntity.ok(ApiResponse.error(500, "测试失败: " + e.getMessage()));
-        }
-    }
-
-    @PostMapping("/chat")
-    public ResponseEntity<ApiResponse<String>> chat(@RequestBody AIChatRequest request) {
-        log.info("收到 AI 对话请求: userId={}", request.getUserId());
-
-        try {
-            String imageInput = request.getImageUrl();
-            if ((imageInput == null || imageInput.isBlank()) && request.getImageBase64() != null && !request.getImageBase64().isBlank()) {
-                imageInput = request.getImageBase64().startsWith("data:image")
-                    ? request.getImageBase64()
-                    : "data:image/jpeg;base64," + request.getImageBase64();
-            }
-
-            String response = arkAIService.chat(request.getMessage(), imageInput, request.getLanguage());
-            if (response == null || response.isBlank()) {
-                return ResponseEntity.ok(ApiResponse.error(503, "AI 服务暂时不可用"));
-            }
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } catch (Exception e) {
-            log.error("AI 对话失败", e);
-            return ResponseEntity.ok(ApiResponse.error(500, "AI 对话失败: " + e.getMessage()));
-        }
+    public ApiResponse<String> testArk() {
+        ai.testConnection();
+        return ApiResponse.success("Ark AI 连接成功");
     }
 }

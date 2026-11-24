@@ -1,6 +1,8 @@
 package com.fitbitepal.backend.repository;
 
 import com.fitbitepal.backend.model.TrainingPlan;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -20,6 +22,8 @@ public interface TrainingPlanRepository extends JpaRepository<TrainingPlan, Long
     @Deprecated
     List<TrainingPlan> findByUserIdAndDayOfWeekOrderByOrderIndexAsc(Long userId, Integer dayOfWeek);
     
+    @Modifying
+    @Query("delete from TrainingPlan r where r.userId = ?1")
     void deleteByUserId(Long userId);
     
     // 新方法 - 基于日期查询
@@ -43,5 +47,6 @@ public interface TrainingPlanRepository extends JpaRepository<TrainingPlan, Long
      * 删除指定用户指定日期的训练计划
      */
     void deleteByUserIdAndPlanDate(Long userId, LocalDate planDate);
-}
 
+    long countByUserIdAndPlanDate(Long userId, LocalDate date);
+}

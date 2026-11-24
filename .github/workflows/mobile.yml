@@ -1,0 +1,34 @@
+name: Mobile verification
+
+on:
+  push:
+    paths: ['FitBitePal-Mobile/**', '.github/workflows/mobile.yml']
+  pull_request:
+    paths: ['FitBitePal-Mobile/**', '.github/workflows/mobile.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FitBitePal-Mobile
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_OFFLINE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: FitBitePal-Mobile/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: node --test tests/*.test.js
+      - name: Export Android bundle
+        run: node node_modules/expo/bin/cli export --platform android --max-workers 2 --output-dir "$RUNNER_TEMP/fitbite-android"
+      - name: Export iOS bundle
+        run: node node_modules/expo/bin/cli export --platform ios --max-workers 2 --output-dir "$RUNNER_TEMP/fitbite-ios"

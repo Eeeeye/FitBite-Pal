@@ -1,6 +1,9 @@
 package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.*;
+import com.fitbitepal.backend.model.User;
+import com.fitbitepal.backend.service.ActivityRecordService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.fitbitepal.backend.model.TrainingRecord;
 import com.fitbitepal.backend.model.DietRecord;
 import com.fitbitepal.backend.repository.TrainingRecordRepository;
@@ -9,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,9 +27,10 @@ import java.util.Map;
 @RestController
 @RequestMapping("/records")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
 public class RecordsController {
     
+    private final ActivityRecordService writer;
     private final TrainingRecordRepository trainingRecordRepository;
     private final DietRecordRepository dietRecordRepository;
     
@@ -39,14 +44,7 @@ public class RecordsController {
             @PathVariable Long userId,
             @RequestBody TrainingRecordRequest request) {
         
-        TrainingRecord record = new TrainingRecord();
-        record.setUserId(userId);
-        record.setExerciseName(request.getExerciseName());
-        record.setDuration(request.getDuration());
-        record.setCaloriesBurned(request.getCaloriesBurned());
-        record.setNotes(request.getNotes());
-        
-        TrainingRecord saved = trainingRecordRepository.save(record);
+        TrainingRecord saved = writer.createTraining(userId, request);
         return ResponseEntity.ok(ApiResponse.success(saved));
     }
     
@@ -81,18 +79,7 @@ public class RecordsController {
             @PathVariable Long userId,
             @RequestBody DietRecordRequest request) {
         
-        DietRecord record = new DietRecord();
-        record.setUserId(userId);
-        record.setFoodName(request.getFoodName());
-        record.setMealType(request.getMealType());
-        record.setCalories(request.getCalories());
-        record.setProtein(request.getProtein());
-        record.setCarbs(request.getCarbs());
-        record.setFat(request.getFat());
-        record.setImageUrl(request.getImageUrl());
-        record.setNotes(request.getNotes());
-        
-        DietRecord saved = dietRecordRepository.save(record);
+        DietRecord saved = writer.createDiet(userId, request);
         return ResponseEntity.ok(ApiResponse.success(saved));
     }
     
@@ -120,19 +107,14 @@ public class RecordsController {
     /**
      * 删除饮食记录
      */
+    @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/diet/{recordId}")
-    public ResponseEntity<ApiResponse<String>> deleteDietRecord(@PathVariable Long recordId) {
-        try {
-            if (!dietRecordRepository.existsById(recordId)) {
-                return ResponseEntity.ok(ApiResponse.error("Diet record not found"));
-            }
-            dietRecordRepository.deleteById(recordId);
-            return ResponseEntity.ok(ApiResponse.success("Diet record deleted successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.error("Failed to delete diet record: " + e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<String>> deleteDietRecord(
+            @PathVariable Long recordId, @AuthenticationPrincipal User actor) {
+        writer.deleteDiet(recordId, actor);
+        return ResponseEntity.ok(ApiResponse.success("Diet record deleted successfully"));
     }
-    
+
     // ==================== 体重记录（已删除） ====================
     
     /**

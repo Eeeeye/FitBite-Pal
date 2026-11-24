@@ -1,5 +1,5 @@
 # FitBitePal 开发环境配置
-# 包含QQ邮箱SMTP配置
+# 邮件配置由 dev profile 组中的 localmail 提供
 
 spring:
   # 数据库配置（继承自主配置文件）
@@ -12,40 +12,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-  
-  # ✨ QQ邮箱SMTP配置
-  mail:
-    host: smtp.qq.com
-    port: 587  # 使用STARTTLS端口
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}  # QQ邮箱授权码
-    protocol: smtp
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          ssl:
-            trust: smtp.qq.com  # 信任QQ邮箱服务器
-            protocols: TLSv1.2 TLSv1.3
-          timeout: 15000
-          connectiontimeout: 15000
-          writetimeout: 15000
-    test-connection: false  # 启动时不测试连接，避免启动失败
 
-# 应用配置
 app:
-  security:
-    # 验证码配置
-    verification-code:
-      length: 6
-      ttl-minutes: 5
-    # 邮件发送配置
-    mail:
-      from: ${MAIL_FROM:${MAIL_USERNAME:noreply@fitbitepal.com}}
-  
   # AI服务配置
   ai:
     enabled: ${AI_ENABLED:true}  # 开发环境默认启用AI

@@ -79,8 +79,17 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
     return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
-  // 解析日志数据
-  const logs = session.logs ? (typeof session.logs === 'string' ? JSON.parse(session.logs) : session.logs) : [];
+  let logs;
+  try {
+    const entries = typeof session.logs === 'string' ? JSON.parse(session.logs) : session.logs;
+    logs = Array.isArray(entries) ? entries.filter(entry => entry && typeof entry === 'object') : [];
+  } catch {
+    logs = [];
+  }
+  const measuredScores = logs.filter(log => !log.feedback?.demo && Number.isFinite(log.score)).map(log => log.score);
+  const averageScore = measuredScores.length
+    ? Math.round(measuredScores.reduce((sum, score) => sum + score, 0) / measuredScores.length)
+    : '—';
 
   return (
     <View style={styles.container}>
@@ -117,9 +126,7 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>📊</Text>
             <Text style={styles.statValue}>
-              {logs.length > 0 
-                ? Math.round(logs.reduce((sum, log) => sum + (log.score || 0), 0) / logs.length)
-                : 0}
+              {averageScore}
             </Text>
             <Text style={styles.statLabel}>
               {currentLanguage === 'zh' ? '平均得分' : 'Avg Score'}
@@ -149,7 +156,8 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
                   </View>
                   <View style={styles.logStats}>
                     <Text style={styles.logStat}>
-                      {currentLanguage === 'zh' ? '得分' : 'Score'}: {log.score || 0}
+                      {log.feedback?.demo && (currentLanguage === 'zh' ? '演示 · ' : 'Demo · ')}
+                      {currentLanguage === 'zh' ? '得分' : 'Score'}: {log.score ?? '—'}
                     </Text>
                   </View>
                 </View>
@@ -163,11 +171,7 @@ export const PoseHistoryDetailScreen = ({ navigation, route }) => {
                     ))
                   ) : (
                     <Text style={styles.logMessage}>
-                      {log.score >= 90 
-                        ? '✅ 姿态标准，保持！' 
-                        : log.score >= 75 
-                        ? '🟡 姿态良好，继续努力' 
-                        : '🔴 姿态需要调整'}
+                      {currentLanguage === 'zh' ? '本帧没有动作建议' : 'No suggestions for this frame'}
                     </Text>
                   )}
                 </View>

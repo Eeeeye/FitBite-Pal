@@ -31,6 +31,8 @@ public class PoseFeedbackResponse {
      * 姿态评分 (0-100)
      */
     private Double score;
+
+    private boolean demo;
     
     /**
      * 整体状态: correct, needs_improvement, incorrect

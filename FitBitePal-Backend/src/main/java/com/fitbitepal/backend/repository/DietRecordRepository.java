@@ -4,6 +4,8 @@ import com.fitbitepal.backend.model.DietRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,6 +13,10 @@ import java.util.List;
 @Repository
 public interface DietRecordRepository extends JpaRepository<DietRecord, Long> {
     
+    @Modifying
+    @Query("delete from DietRecord r where r.userId = ?1")
+    void deleteByUserId(Long userId);
+
     List<DietRecord> findByUserIdOrderByRecordedAtDesc(Long userId);
     
     List<DietRecord> findByUserIdAndRecordedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
@@ -18,13 +24,9 @@ public interface DietRecordRepository extends JpaRepository<DietRecord, Long> {
     @Query("SELECT SUM(r.calories) FROM DietRecord r WHERE r.userId = ?1 AND r.recordedAt BETWEEN ?2 AND ?3")
     Integer sumCaloriesByUserIdAndDateRange(Long userId, LocalDateTime start, LocalDateTime end);
     
-    // 删除指定时间之前的记录（用于清理历史数据）
-    int deleteByRecordedAtBefore(LocalDateTime cutoffTime);
+    @Modifying
+    @Query("delete from DietRecord d where d.id = :id and (:admin = true or d.userId = :owner)")
+    int deleteForActor(@Param("id") Long id,
+                       @Param("owner") Long owner,
+                       @Param("admin") boolean admin);
 }
-
-
-
-
-
-
-

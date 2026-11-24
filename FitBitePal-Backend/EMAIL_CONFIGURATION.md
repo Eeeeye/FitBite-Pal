@@ -1,364 +1,61 @@
-# 📧 邮箱验证功能配置指南
+# 找回密码邮件
 
-## 📋 概述
+后端使用 MySQL 查找注册邮箱，用 Redis 保存短期验证码。开发时邮件进入 Mailpit 本地收件箱；对外投递使用已授权的 SMTP 发件账号。
 
-FitBitePal的找回密码功能需要配置邮件服务（SMTP）和Redis来发送和验证邮箱验证码。
+## 本地收件
 
----
+在仓库根目录按 [README](../README.md) 配置数据库密码和 JWT 签名密钥，然后启动开发栈。
 
-## ✅ 前置条件
-
-### 1. Redis（必需）
-验证码需要存储在Redis中，有效期5分钟。
-
-**安装Redis**:
-```bash
-# Windows (使用WSL或下载Windows版本)
-# https://redis.io/download
-
-# macOS
-brew install redis
-brew services start redis
-
-# Linux (Ubuntu/Debian)
-sudo apt-get install redis-server
-sudo systemctl start redis
+```sh
+docker compose -f docker-compose.yml -f compose.mailpit.yml up -d --build
+docker compose -f docker-compose.yml -f compose.mailpit.yml port mailpit 8025
 ```
 
-**验证Redis运行**:
-```bash
-redis-cli ping
-# 应该返回: PONG
-```
+第二条命令显示收件箱映射到的主机地址。默认是 `http://127.0.0.1:8025`。宿主机上的 SMTP 端口默认为 1025，Compose 中的后端通过容器网络访问 `mailpit:1025`。可用 `FITBITE_INBOX_PORT` 和 `FITBITE_SMTP_PORT` 调整映射，两个主机端口都绑定到回环地址。
 
----
+直接在宿主机运行后端时，先启动 MySQL、Redis 和 Mailpit，设置应用的数据库连接参数，再运行以下命令。默认和 `dev` 配置都会启用 `localmail`，连接本机的 Mailpit。宿主机 SMTP 使用自定义端口时，通过 `FITBITE_MAILPIT_PORT` 传入实际端口。
 
-## 🔧 邮件服务配置（三选一）
-
-### 选项1: Gmail（推荐用于测试）
-
-#### 步骤1: 开启两步验证
-1. 访问 https://myaccount.google.com/security
-2. 开启"两步验证"
-
-#### 步骤2: 生成应用专用密码
-1. 访问 https://myaccount.google.com/apppasswords
-2. 选择"邮件"和"其他（自定义名称）"
-3. 输入"FitBitePal"
-4. 复制生成的16位密码（格式：xxxx xxxx xxxx xxxx）
-
-#### 步骤3: 配置环境变量
-```bash
-# Windows PowerShell
-$env:MAIL_HOST="smtp.gmail.com"
-$env:MAIL_PORT="587"
-$env:MAIL_USERNAME="your-email@gmail.com"
-$env:MAIL_PASSWORD="your-app-password"  # 16位应用专用密码（去掉空格）
-$env:MAIL_FROM="your-email@gmail.com"
-
-# Linux/macOS
-export MAIL_HOST=smtp.gmail.com
-export MAIL_PORT=587
-export MAIL_USERNAME=your-email@gmail.com
-export MAIL_PASSWORD=your-app-password
-export MAIL_FROM=your-email@gmail.com
-```
-
----
-
-### 选项2: QQ邮箱（推荐国内用户）
-
-#### 步骤1: 开启SMTP服务
-1. 登录QQ邮箱 https://mail.qq.com
-2. 点击"设置" → "账户"
-3. 找到"POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务"
-4. 开启"POP3/SMTP服务"或"IMAP/SMTP服务"
-5. 点击"生成授权码"，会收到一条短信
-6. 记录生成的**授权码**（16位）
-
-#### 步骤2: 配置环境变量
-```bash
-# Windows PowerShell
-$env:MAIL_HOST="smtp.qq.com"
-$env:MAIL_PORT="587"
-$env:MAIL_USERNAME="your-qq-number@qq.com"
-$env:MAIL_PASSWORD="your-authorization-code"  # QQ邮箱授权码
-$env:MAIL_FROM="your-qq-number@qq.com"
-
-# Linux/macOS
-export MAIL_HOST=smtp.qq.com
-export MAIL_PORT=587
-export MAIL_USERNAME=your-qq-number@qq.com
-export MAIL_PASSWORD=your-authorization-code
-export MAIL_FROM=your-qq-number@qq.com
-```
-
----
-
-### 选项3: 163网易邮箱
-
-#### 步骤1: 开启SMTP服务
-1. 登录163邮箱 https://mail.163.com
-2. 点击"设置" → "POP3/SMTP/IMAP"
-3. 开启"IMAP/SMTP服务"
-4. 设置**客户端授权密码**
-5. 记录这个密码
-
-#### 步骤2: 配置环境变量
-```bash
-# Windows PowerShell
-$env:MAIL_HOST="smtp.163.com"
-$env:MAIL_PORT="465"  # 163使用SSL端口465
-$env:MAIL_USERNAME="your-email@163.com"
-$env:MAIL_PASSWORD="your-authorization-password"
-$env:MAIL_FROM="your-email@163.com"
-
-# Linux/macOS
-export MAIL_HOST=smtp.163.com
-export MAIL_PORT=465
-export MAIL_USERNAME=your-email@163.com
-export MAIL_PASSWORD=your-authorization-password
-export MAIL_FROM=your-email@163.com
-```
-
----
-
-## 🚀 启动后端服务
-
-### 方法1: 使用环境变量
-```bash
-# 1. 设置所有环境变量（见上方）
-
-# 2. 启动后端
+```sh
 cd FitBitePal-Backend
 mvn spring-boot:run
 ```
 
-### 方法2: 使用配置文件（推荐）
+## 真实邮箱投递
 
-创建 `FitBitePal-Backend/src/main/resources/application-dev.yml`:
-```yaml
-spring:
-  mail:
-    host: smtp.gmail.com  # 或 smtp.qq.com / smtp.163.com
-    port: 587
-    username: your-email@gmail.com
-    password: your-app-password
-    protocol: smtp
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
+准备供应商提供的 **SMTP STARTTLS 提交端点**，通常使用 587 端口。后端使用 SMTP 身份验证，要求 STARTTLS 并校验服务器证书主机名。填写供应商允许使用的发件地址和相应的 SMTP 授权凭据。
 
-app:
-  security:
-    mail:
-      from: your-email@gmail.com
+| 变量 | 配置值 |
+|---|---|
+| `MAIL_HOST` | 供应商标明支持 STARTTLS 的 SMTP 主机 |
+| `MAIL_PORT` | 该主机的 STARTTLS 提交端口，默认 587 |
+| `MAIL_USERNAME` | SMTP 认证账号 |
+| `MAIL_PASSWORD` | 供应商签发的 SMTP 凭据或应用专用密码 |
+| `MAIL_FROM` | 供应商已验证并允许该账号使用的发件地址 |
+
+将这五项填入部署环境的密钥配置，或本机被 Git 忽略的 `.env`。使用 Compose 时单独指定主文件，重新创建后端容器使配置生效。
+
+```sh
+docker compose -f docker-compose.yml up -d --build --force-recreate backend
 ```
 
-然后启动：
-```bash
-mvn spring-boot:run --spring.profiles.active=dev
-```
+宿主机直接启动时，将五项值注入当前进程环境，并显式选择供应商配置。已有生产部署可以使用配置完整的 `prod` profile。
 
----
-
-## 🧪 测试邮件功能
-
-### 1. 启动服务
-确保Redis和后端都已启动：
-```bash
-# 终端1: 启动Redis（如果未运行）
-redis-server
-
-# 终端2: 启动后端
+```sh
 cd FitBitePal-Backend
-mvn spring-boot:run
+SPRING_PROFILES_ACTIVE=provider mvn spring-boot:run
 ```
 
-### 2. 查看日志
-后端启动时应该看到：
-```
-✅ 邮件服务配置成功
-   Host: smtp.gmail.com
-   Port: 587
-   Username: your-email@gmail.com
-```
+## 验收一次找回密码
 
-### 3. 在应用中测试
-1. 打开FitBitePal应用
-2. 点击"忘记密码"
-3. 输入邮箱地址（使用您配置的邮箱）
-4. 点击"发送验证码"
-5. 检查邮箱收件箱（可能在垃圾邮件中）
+1. 在 App 注册一个测试用户。本地收件可用虚拟地址 `alex@example.test`；真实投递需要自己能够收信的地址。
+2. 在登录页进入“忘记密码”，输入该用户的注册邮箱，点击发送验证码。服务端对已注册和未注册邮箱返回相同的提交成功消息。
+3. 打开本地 Mailpit 或测试用户的邮箱，读取六位数字并在 App 输入。预校验通过后设置新密码，再用新密码登录。
+4. 如果没有收到邮件，先检查是否启用了期望的 profile、Redis 是否可访问，再检查发件账号授权、STARTTLS 端口和 SMTP 返回的错误。验证码发送成功取决于邮件传输和有效收件地址。
 
-### 4. 验证重置流程
-先在客户端核对验证码，再设置新密码并重新登录。验证码在最终重置时一次性消费。邮件服务异常时可以检查后端日志。
+| 步骤 | 接口 | 请求字段 |
+|---|---|---|
+| 发送 | `POST /api/auth/send-reset-code` | `email` |
+| 预校验 | `POST /api/auth/verify-code` | `email`、`code` |
+| 重置 | `POST /api/auth/reset-password` | `email`、`code`、`newPassword` |
 
----
-
-## ❌ 常见问题
-
-### 问题1: "Authentication failed"（认证失败）
-
-**原因**: 密码错误或未开启SMTP服务
-
-**解决方案**:
-- Gmail: 确保使用的是**应用专用密码**，不是Google账号密码
-- QQ邮箱: 确保使用的是**授权码**，不是QQ密码
-- 163邮箱: 确保使用的是**客户端授权密码**
-
-### 问题2: "Connection refused"（连接被拒绝）
-
-**原因**: SMTP端口或主机地址错误
-
-**解决方案**:
-- 检查`MAIL_HOST`和`MAIL_PORT`是否正确
-- Gmail: `smtp.gmail.com:587`
-- QQ邮箱: `smtp.qq.com:587`
-- 163邮箱: `smtp.163.com:465`
-
-### 问题3: "Could not connect to Redis"
-
-**原因**: Redis服务未启动
-
-**解决方案**:
-```bash
-# 启动Redis
-redis-server
-
-# 或使用Docker
-docker run -d -p 6379:6379 redis:alpine
-```
-
-### 问题4: 收不到邮件
-
-**解决方案**:
-1. **检查垃圾邮件箱**：验证码邮件可能被标记为垃圾邮件
-2. **检查后端日志**，排查邮件发送异常
-3. **等待1-2分钟**：有时邮件会延迟
-4. **尝试重发**：点击"重新发送"按钮
-
----
-
-## 📊 验证码配置
-
-可以通过环境变量自定义验证码：
-
-```bash
-# 验证码长度（默认6位）
-export VERIFICATION_CODE_LENGTH=6
-
-# 验证码有效期（默认5分钟）
-export VERIFICATION_CODE_TTL_MINUTES=5
-```
-
----
-
-## 🔒 生产环境配置
-
-### 使用环境变量（推荐）
-```bash
-# 在服务器上设置环境变量
-export MAIL_HOST=smtp.example.com
-export MAIL_PORT=587
-export MAIL_USERNAME=noreply@fitbitepal.com
-export MAIL_PASSWORD=strong-password
-export MAIL_FROM=noreply@fitbitepal.com
-
-# 或使用Docker环境变量
-docker run -d \
-  -e MAIL_HOST=smtp.example.com \
-  -e MAIL_PORT=587 \
-  -e MAIL_USERNAME=noreply@fitbitepal.com \
-  -e MAIL_PASSWORD=strong-password \
-  -e MAIL_FROM=noreply@fitbitepal.com \
-  fitbitepal-backend
-```
-
-### 安全建议
-1. ✅ 使用专用的"noreply@"邮箱
-2. ✅ 定期更换SMTP密码
-3. ✅ 在生产环境使用HTTPS
-4. ✅ 客户端倒计时之外，在生产网关配置发码与校验限流
-5. ✅ 监控邮件发送失败率
-
----
-
-## 📚 相关API
-
-### 发送验证码
-```http
-POST /api/auth/send-reset-code
-Content-Type: application/json
-
-{
-  "email": "user@example.com"
-}
-```
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Verification code sent to your email",
-  "data": null
-}
-```
-
-### 验证验证码（重置密码）
-```http
-POST /api/auth/reset-password
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "code": "123456",
-  "newPassword": "new-secure-password"
-}
-```
-
----
-
-## 💡 快速开始（推荐配置）
-
-**如果您想快速测试，推荐使用Gmail**：
-
-```bash
-# 1. 开启Redis
-redis-server
-
-# 2. 配置Gmail（见上方步骤）
-export MAIL_HOST=smtp.gmail.com
-export MAIL_PORT=587
-export MAIL_USERNAME=your-email@gmail.com
-export MAIL_PASSWORD=your-app-password
-export MAIL_FROM=your-email@gmail.com
-
-# 3. 启动后端
-cd FitBitePal-Backend
-mvn spring-boot:run
-
-# 4. 在应用中测试找回密码功能
-```
-
----
-
-## ✨ 当前状态
-
-- ✅ **后端邮件服务已实现**
-- ✅ **前端找回密码页面已国际化**
-- ⏳ **需要配置SMTP服务器**
-- ⏳ **需要Redis服务运行**
-
-配置完成后即可使用完整的找回密码功能！
-
----
-
-**更新日期**: 2025-11-19
-**版本**: 1.0.0
-
-
+默认有效期为五分钟，可用 `VERIFICATION_CODE_TTL_MINUTES` 配置。每个已注册邮箱在 60 秒内最多签发一次，在这 60 秒内重试会保留已发验证码。预校验与重置共用五次错误额度，成功预校验保留验证码，最终重置时原子消费一次。

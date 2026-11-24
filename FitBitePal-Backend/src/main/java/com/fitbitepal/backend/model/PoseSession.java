@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "pose_sessions")
+@Table(name = "pose_sessions", indexes = @Index(name = "idx_pose_draft_age", columnList = "session_state,created_at"))
 public class PoseSession {
     
     @Id
@@ -43,6 +43,21 @@ public class PoseSession {
      */
     @Column(name = "exercise_name", nullable = false, length = 100)
     private String exerciseName;
+
+    @Column(name = "exercise_id")
+    private Long exerciseId;
+
+    public enum State { ACTIVE, COMPLETED, ABORTED, SAVED }
+
+    // Rows written before V8 are already-saved history.
+    @Enumerated(EnumType.STRING)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.VARCHAR)
+    @Column(name = "session_state", length = 16)
+    private State state;
+
+    public boolean isSaved() {
+        return state == null || state == State.SAVED;
+    }
     
     /**
      * 训练时长（秒）

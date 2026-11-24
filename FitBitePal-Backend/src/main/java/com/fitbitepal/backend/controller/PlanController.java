@@ -8,11 +8,13 @@ import com.fitbitepal.backend.repository.TrainingPlanRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/plans")
+@PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
 @RequiredArgsConstructor
 public class PlanController {
     

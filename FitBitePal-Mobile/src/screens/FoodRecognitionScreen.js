@@ -19,7 +19,7 @@ import { saveDietRecord } from '../api/user';
 export const FoodRecognitionScreen = ({ navigation }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedMealType, setSelectedMealType] = useState('Lunch'); // 默认午餐
-  const { analyzing, result, analyzeFood } = useFoodAnalysis();
+  const { analyzing, result, analyzeFood, resetAnalysis } = useFoodAnalysis();
   const { currentLanguage } = useAppState();
   const { dietPlan, setDietPlan } = useUserProfile();
   const { userId } = useAuth();
@@ -38,7 +38,10 @@ export const FoodRecognitionScreen = ({ navigation }) => {
       if (image && image.uri) {
         setSelectedImage(image.uri); // ✨ 存储URI字符串
         // Auto analyze
-        await analyzeFood(image.uri); // ✨ 传递URI字符串（与App1.js一致）
+        const analysis = await analyzeFood(image.uri);
+        if (!analysis.success) {
+          Alert.alert(currentLanguage === 'zh' ? '食物识别失败' : 'Food recognition failed', analysis.message);
+        }
       }
     } catch (error) {
       console.error('Failed to select image:', error);
@@ -50,6 +53,7 @@ export const FoodRecognitionScreen = ({ navigation }) => {
   };
 
   const handleRetake = () => {
+    resetAnalysis();
     setSelectedImage(null);
   };
 

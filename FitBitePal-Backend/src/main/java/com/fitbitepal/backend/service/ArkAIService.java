@@ -38,12 +38,13 @@ public class ArkAIService {
     @Value("${ark.api.enabled:true}")
     private boolean enabled;
 
-    @Value("${app.ai.ark.timeout:30000}")
-    private int timeoutMs;
-
-    public ArkAIService() {
-        this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
+    public ArkAIService(ObjectMapper objectMapper, @Value("${app.ai.ark.timeout:30000}") int timeoutMs) {
+        if (timeoutMs < 1) throw new IllegalArgumentException("AI timeout must be positive");
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(timeoutMs);
+        factory.setReadTimeout(timeoutMs);
+        this.restTemplate = new RestTemplate(factory);
+        this.objectMapper = objectMapper;
     }
 
     public FoodRecognitionResponse recognizeFood(String imageInput, String language) {
@@ -123,7 +124,7 @@ public class ArkAIService {
             String result = sendTextRequest("Reply with OK only.");
             return result != null && !result.isBlank();
         } catch (Exception e) {
-            log.error("Ark AI 连接测试失败", e);
+            log.warn("Ark connection test failed ({})", e.getClass().getSimpleName());
             return false;
         }
     }
@@ -157,8 +158,6 @@ public class ArkAIService {
 
     private String sendChatCompletion(List<Map<String, Object>> content) {
         try {
-            configureTimeouts();
-
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", model);
             requestBody.put("stream", false);
@@ -185,31 +184,22 @@ public class ArkAIService {
             );
 
             if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
-                log.error("Ark API 请求失败: statusCode={}, body={}", response.getStatusCode(), response.getBody());
+                log.warn("Ark AI request failed with HTTP {}", response.getStatusCode());
                 return null;
             }
 
             JsonNode jsonResponse = objectMapper.readTree(response.getBody());
             String aiResponse = jsonResponse.path("choices").path(0).path("message").path("content").asText();
             if (aiResponse == null || aiResponse.isBlank()) {
-                log.error("Ark API 返回空内容: body={}", response.getBody());
+                log.warn("Ark AI returned empty content");
                 return null;
             }
 
             return aiResponse;
         } catch (Exception e) {
-            log.error("调用 Ark API 失败", e);
+            log.warn("Ark AI request failed ({})", e.getClass().getSimpleName());
             return null;
         }
-    }
-
-    private void configureTimeouts() {
-        if (!(restTemplate.getRequestFactory() instanceof SimpleClientHttpRequestFactory factory)) {
-            return;
-        }
-
-        factory.setConnectTimeout(timeoutMs);
-        factory.setReadTimeout(timeoutMs);
     }
 
     private String buildFoodRecognitionPrompt(String language) {
@@ -324,6 +314,7 @@ public class ArkAIService {
             JsonNode foodsNode = root.path("foods");
             if (foodsNode.isArray()) {
                 for (JsonNode foodNode : foodsNode) {
+                    if (foodNode.path("name").asText("").isBlank()) return null;
                     foods.add(
                         FoodRecognitionResponse.FoodItem.builder()
                             .name(foodNode.path("name").asText(""))
@@ -336,54 +327,41 @@ public class ArkAIService {
             }
 
             FoodRecognitionResponse.NutritionInfo totalNutrition = parseNutrition(root.path("totalNutrition"));
-            if (foods.isEmpty()) {
-                return null;
-            }
+            if (foods.isEmpty()) return null;
+            if (totalNutrition == null) totalNutrition = sumNutrition(foods);
+            if (totalNutrition == null) return null;
 
             return FoodRecognitionResponse.builder()
                 .foods(foods)
-                .totalNutrition(totalNutrition != null ? totalNutrition : sumNutrition(foods))
+                .totalNutrition(totalNutrition)
                 .build();
         } catch (Exception e) {
-            log.error("解析 Ark 食物识别响应失败: response={}", aiResponse, e);
+            log.warn("Ark AI returned invalid food recognition JSON");
             return null;
         }
     }
 
     private FoodRecognitionResponse.NutritionInfo parseNutrition(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) {
-            return null;
-        }
-        return FoodRecognitionResponse.NutritionInfo.builder()
-            .calories(readNullableDouble(node, "calories"))
-            .protein(readNullableDouble(node, "protein"))
-            .carbs(readNullableDouble(node, "carbs"))
-            .fat(readNullableDouble(node, "fat"))
-            .build();
+        if (node == null || !node.isObject()) return null;
+        Double calories = readNullableDouble(node, "calories");
+        Double protein = readNullableDouble(node, "protein");
+        Double carbs = readNullableDouble(node, "carbs");
+        Double fat = readNullableDouble(node, "fat");
+        if (calories == null || protein == null || carbs == null || fat == null) return null;
+        return FoodRecognitionResponse.NutritionInfo.builder().calories(calories).protein(protein).carbs(carbs).fat(fat).build();
     }
 
     private FoodRecognitionResponse.NutritionInfo sumNutrition(List<FoodRecognitionResponse.FoodItem> foods) {
-        double calories = 0;
-        double protein = 0;
-        double carbs = 0;
-        double fat = 0;
-
-        for (FoodRecognitionResponse.FoodItem food : foods) {
-            if (food.getNutrition() == null) {
-                continue;
-            }
-            calories += valueOrZero(food.getNutrition().getCalories());
-            protein += valueOrZero(food.getNutrition().getProtein());
-            carbs += valueOrZero(food.getNutrition().getCarbs());
-            fat += valueOrZero(food.getNutrition().getFat());
+        double calories = 0, protein = 0, carbs = 0, fat = 0;
+        for (var food : foods) {
+            var nutrition = food.getNutrition();
+            if (nutrition == null) return null;
+            calories += nutrition.getCalories();
+            protein += nutrition.getProtein();
+            carbs += nutrition.getCarbs();
+            fat += nutrition.getFat();
         }
-
-        return FoodRecognitionResponse.NutritionInfo.builder()
-            .calories(calories)
-            .protein(protein)
-            .carbs(carbs)
-            .fat(fat)
-            .build();
+        return FoodRecognitionResponse.NutritionInfo.builder().calories(calories).protein(protein).carbs(carbs).fat(fat).build();
     }
 
     private String stripCodeFence(String text) {
@@ -419,24 +397,7 @@ public class ArkAIService {
 
     private Double readNullableDouble(JsonNode node, String fieldName) {
         JsonNode value = node.path(fieldName);
-        if (value.isMissingNode() || value.isNull()) {
-            return null;
-        }
-        if (value.isNumber()) {
-            return value.asDouble();
-        }
-        String raw = value.asText("").trim();
-        if (raw.isEmpty()) {
-            return null;
-        }
-        try {
-            return Double.parseDouble(raw);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private double valueOrZero(Double value) {
-        return value == null ? 0 : value;
+        double number = value.asDouble(Double.NaN);
+        return Double.isFinite(number) && number >= 0 ? number : null;
     }
 }

@@ -40,7 +40,6 @@ class RedisResetCodeTest {
         connections.afterPropertiesSet();
         redis = new StringRedisTemplate(connections);
         service = new EmailService(mail, redis);
-        ReflectionTestUtils.setField(service, "codeLength", 6);
         ReflectionTestUtils.setField(service, "codeTtlMinutes", 5L);
         ReflectionTestUtils.setField(service, "mailFrom", "test@example.test");
     }
@@ -91,9 +90,41 @@ class RedisResetCodeTest {
     }
 
     @Test
+    void repeatedRequestKeepsExistingCodeAndSendsOneMessage() {
+        service.sendVerificationCode(address);
+        String issued = (String) redis.opsForHash().get(key, "code");
+        service.sendVerificationCode(address);
+        verify(mail, times(1)).send(any(SimpleMailMessage.class));
+        assertThat(service.verifyCode(address, issued)).isTrue();
+    }
+
+    @Test
+    void incorrectSubmissionsShareOneBudgetAcrossBothSteps() {
+        service.sendVerificationCode(address);
+        String issued = (String) redis.opsForHash().get(key, "code");
+        for (int i = 0; i < 4; i++) {
+            assertThat(service.verifyCode(address, "invalid")).isFalse();
+        }
+        assertThat(service.consumeCode(address, "invalid")).isFalse();
+        assertThat(service.verifyCode(address, issued)).isFalse();
+        assertThat(service.consumeCode(address, issued)).isFalse();
+        service.sendVerificationCode(address);
+        verify(mail, times(1)).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void liveCodeFromEarlierReleaseKeepsItsExpiryAndWorksOnce() {
+        redis.opsForValue().set(key, "123456", Duration.ofSeconds(80));
+        assertThat(service.verifyCode(address, "123456")).isTrue();
+        assertThat(redis.getExpire(key)).isBetween(1L, 80L);
+        assertThat(service.consumeCode(address, "123456")).isTrue();
+        assertThat(service.consumeCode(address, "123456")).isFalse();
+    }
+
+    @Test
     void expiredCodeCannotBeVerifiedOrConsumed() {
         service.sendVerificationCode(address);
-        String code = redis.opsForValue().get(key);
+        String code = (String) redis.opsForHash().get(key, "code");
         assertThat(redis.expire(key, Duration.ZERO)).isTrue();
         assertThat(service.verifyCode(address, code)).isFalse();
         assertThat(service.consumeCode(address, code)).isFalse();

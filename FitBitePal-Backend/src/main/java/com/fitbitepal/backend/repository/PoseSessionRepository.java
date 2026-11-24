@@ -3,6 +3,10 @@ package com.fitbitepal.backend.repository;
 import com.fitbitepal.backend.model.PoseSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -24,6 +28,14 @@ public interface PoseSessionRepository extends JpaRepository<PoseSession, Long> 
      * @return 会话实体
      */
     Optional<PoseSession> findBySessionId(String sessionId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from PoseSession p where p.sessionId = :id")
+    Optional<PoseSession> findForUpdate(@Param("id") String id);
+
+    @Modifying
+    @Query("delete from PoseSession p where p.state in :drafts and p.createdAt < :cutoff")
+    int deleteExpiredDrafts(@Param("drafts") List<PoseSession.State> drafts, @Param("cutoff") LocalDateTime cutoff);
     
     /**
      * 根据用户ID查询所有训练会话
@@ -32,16 +44,10 @@ public interface PoseSessionRepository extends JpaRepository<PoseSession, Long> 
      * @param userId 用户ID
      * @return 会话列表
      */
-    @Query("SELECT p FROM PoseSession p WHERE p.userId = :userId ORDER BY p.trainingDate DESC")
-    List<PoseSession> findByUserIdOrderByTrainingDateDesc(@Param("userId") Long userId);
+    @Query("select p from PoseSession p where p.userId = :userId and (p.state is null or p.state = :saved) order by p.trainingDate desc")
+    List<PoseSession> findHistory(@Param("userId") Long userId, @Param("saved") PoseSession.State saved);
     
-    /**
-     * 根据用户ID和运动名称查询
-     * 
-     * @param userId 用户ID
-     * @param exerciseName 运动名称
-     * @return 会话列表
-     */
-    List<PoseSession> findByUserIdAndExerciseNameOrderByTrainingDateDesc(Long userId, String exerciseName);
+    @Modifying
+    @Query("delete from PoseSession r where r.userId = ?1")
+    void deleteByUserId(Long userId);
 }
-

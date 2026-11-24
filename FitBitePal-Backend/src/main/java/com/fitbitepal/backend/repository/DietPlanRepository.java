@@ -1,6 +1,8 @@
 package com.fitbitepal.backend.repository;
 
 import com.fitbitepal.backend.model.DietPlan;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -25,6 +27,10 @@ public interface DietPlanRepository extends JpaRepository<DietPlan, Long> {
     // 删除指定日期的计划
     void deleteByUserIdAndPlanDate(Long userId, LocalDate planDate);
     
+    @Modifying
+    @Query("delete from DietPlan r where r.userId = ?1")
     void deleteByUserId(Long userId);
+
+    List<DietPlan> findByUserIdAndPlanDateIsNullOrderByIdAsc(Long userId);
 }
 

@@ -11,6 +11,8 @@ public class PoseSessionRequest {
     /**
      * 用户 ID
      */
+    @jakarta.validation.constraints.NotNull
+    @jakarta.validation.constraints.Positive
     private Long userId;
     
     /**
@@ -21,6 +23,7 @@ public class PoseSessionRequest {
     /**
      * 运动名称
      */
+    @jakarta.validation.constraints.Size(max = 100)
     private String exerciseName;
 }
 

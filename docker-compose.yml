@@ -21,7 +21,7 @@ services:
       - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./FitBitePal-Backend/sql:/docker-entrypoint-initdb.d:ro
+      - ./FitBitePal-Backend/src/main/resources/db/baseline/mysql8.sql:/docker-entrypoint-initdb.d/01-fitbite-schema.sql:ro
     networks:
       - fitbitepal-network
     healthcheck:
@@ -74,20 +74,23 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       
       # JPA 配置 (生产环境)
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_JPA_SHOW_SQL: "false"
       
       # JWT 配置 (请修改为安全的密钥)
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://localhost:19006}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a private signing key}
       FITBITE_ADMIN_EMAIL: ${FITBITE_ADMIN_EMAIL:-}
       FITBITE_ADMIN_PASSWORD: ${FITBITE_ADMIN_PASSWORD:-}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       
       # 邮件配置
-      SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
-      SPRING_MAIL_PORT: ${MAIL_PORT:-587}
-      SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
-      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      FITBITE_DEFAULT_PROFILE: provider
+      MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-${MAIL_USERNAME:-noreply@fitbite.test}}
       
       # AI 配置
       AI_ENABLED: ${AI_ENABLED:-false}

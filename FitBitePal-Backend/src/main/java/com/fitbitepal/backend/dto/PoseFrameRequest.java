@@ -13,6 +13,7 @@ public class PoseFrameRequest {
     /**
      * 会话 ID
      */
+    @jakarta.validation.constraints.NotBlank
     private String sessionId;
     
     /**

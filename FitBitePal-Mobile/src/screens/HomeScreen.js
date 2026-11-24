@@ -311,7 +311,7 @@ export const HomeScreen = ({ navigation }) => {
               .map((item, index) => {
               const dateKey = getDateKey(selectedDate);
               // ✅ 使用 orderIndex-1（因为后端orderIndex从1开始，完成记录从0开始）或 index
-              const itemIndex = item.orderIndex !== undefined ? (item.orderIndex - 1) : index;
+              const itemIndex = item.orderIndex > 0 ? item.orderIndex - 1 : index;
               const isCompleted = completedExercises[dateKey]?.[itemIndex] || false;
               const canModify = isSelectedDateToday();
               
@@ -355,7 +355,7 @@ export const HomeScreen = ({ navigation }) => {
                         e.stopPropagation();
                         
                         // ✅ 使用 orderIndex-1（后端从1开始，完成记录从0开始）或 index
-                        const itemIdx = item.orderIndex !== undefined ? (item.orderIndex - 1) : index;
+                        const itemIdx = item.orderIndex > 0 ? item.orderIndex - 1 : index;
                         const newCompletedState = !(completedExercises[dateKey]?.[itemIdx]);
                         
                         setCompletedExercises(prev => ({

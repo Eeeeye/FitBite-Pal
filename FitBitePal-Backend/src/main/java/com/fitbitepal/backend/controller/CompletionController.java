@@ -18,7 +18,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/completion")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class CompletionController {
     private final CompletionService completions;
 

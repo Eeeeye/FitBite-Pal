@@ -36,5 +36,11 @@ public interface FoodItemRepository extends JpaRepository<FoodItem, Long> {
     
     // 统计启用的食品数量
     long countByEnabledTrue();
-}
 
+    @Query("""
+            select f from FoodItem f where f.enabled = true and (:category is null or f.category = :category)
+            and (:term = '' or locate(lower(:term), lower(f.name)) > 0
+                or locate(lower(:term), lower(f.nameEn)) > 0 or locate(lower(:term), lower(f.keywords)) > 0)
+            """)
+    Page<FoodItem> filterEnabled(String category, String term, Pageable page);
+}

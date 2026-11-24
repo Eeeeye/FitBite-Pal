@@ -1,6 +1,7 @@
 package com.fitbitepal.backend.repository;
 
 import com.fitbitepal.backend.model.CompletionRecord;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -46,11 +47,38 @@ public interface CompletionRecordRepository extends JpaRepository<CompletionReco
     /**
      * 查找某天某类型的所有完成记录（管理后台统计用）
      */
-    List<CompletionRecord> findByRecordDateAndItemType(LocalDate recordDate, String itemType);
+    @Query("""
+            select count(r) as total, coalesce(sum(case when r.completed = true then 1 else 0 end), 0) as completed
+            from CompletionRecord r where r.recordDate = :date and r.itemType = :itemType
+            """)
+    CompletionTotals completionTotals(LocalDate date, String itemType);
+
+    interface CompletionTotals {
+        long getTotal();
+        long getCompleted();
+    }
     
     /**
      * 删除用户的所有完成记录
      */
+    @Modifying
+    @Query("delete from CompletionRecord r where r.userId = ?1")
     void deleteByUserId(Long userId);
-}
 
+    @Query("""
+            select r.itemType as itemType, coalesce(sum(r.calories), 0) as total
+            from CompletionRecord r where r.userId = :userId and r.recordDate = :date
+            and r.completed = true and r.itemType in ('meal', 'exercise')
+            group by r.itemType
+            """)
+    List<CalorieTotal> totalsForDay(Long userId, LocalDate date);
+
+    interface CalorieTotal {
+        String getItemType();
+        long getTotal();
+    }
+
+    void deleteByUserIdAndRecordDateAndItemType(Long userId, LocalDate date, String itemType);
+
+    List<CompletionRecord> findByUserIdAndItemTypeAndRecordDateBetweenOrderByRecordDateDesc(Long userId, String type, LocalDate start, LocalDate end);
+}

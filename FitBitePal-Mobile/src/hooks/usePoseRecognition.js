@@ -9,11 +9,14 @@ export const usePoseRecognition = (exercise) => {
   const [sessionId, setSessionId] = useState(null);
   const [isActive, setIsActive] = useState(false);
   const [feedback, setFeedback] = useState(null);
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
   const [reps, setReps] = useState(0);
   const [duration, setDuration] = useState(0);
   const [calories, setCalories] = useState(0);
-  const [frameCount, setFrameCount] = useState(0); // ✨ 帧计数器（避免超出int范围）
+  const frameCount = useRef(0);
+  const captureInFlight = useRef(false);
+  const activeSession = useRef(null);
   const [feedbackLogs, setFeedbackLogs] = useState([]); // ✨ AI反馈日志数组
   const [isAnalyzing, setIsAnalyzing] = useState(false); // ✨ AI分析中状态
   
@@ -27,6 +30,7 @@ export const usePoseRecognition = (exercise) => {
   // ✨ 组件卸载时清理计时器
   useEffect(() => {
     return () => {
+      activeSession.current = null;
       if (timerRef.current) {
 
         clearInterval(timerRef.current);
@@ -47,14 +51,16 @@ export const usePoseRecognition = (exercise) => {
       });
       
       if (response.success && response.data) {
+        activeSession.current = response.data.sessionId;
         setSessionId(response.data.sessionId);
         setIsActive(true);
-        setScore(0);
+        setScore(null);
+        setAnalysisError(null);
         setReps(0);
         setDuration(0);
         setCalories(0);
         setFeedback(null);
-        setFrameCount(0); // ✨ 重置帧计数器
+        frameCount.current = 0; // ✨ 重置帧计数器
         setFeedbackLogs([]); // ✨ 清空反馈日志
 
       // ✨ 清除可能存在的旧计时器
@@ -99,44 +105,16 @@ export const usePoseRecognition = (exercise) => {
       setIsAnalyzing(true); // ✨ 开始分析
       const response = await submitPoseFrame(frameData);
 
+      if (activeSession.current !== frameData.sessionId) return response;
       if (response.success && response.data) {
-
-
-
-
-
-        // ✨ response.data 本身就是 PoseFeedbackResponse，包含 corrections
-        // 构建一个统一的 feedback 对象
-        let feedbackToUse = {
+        setAnalysisError(null);
+        const feedbackToUse = {
           score: response.data.score,
           corrections: response.data.corrections || [],
           message: response.data.corrections?.[0]?.message || '',
-          overallStatus: response.data.overallStatus
+          overallStatus: response.data.overallStatus,
+          demo: response.data.demo === true,
         };
-        
-        // ✨ 如果后端返回的 corrections 为空，生成基于分数的模拟反馈
-        if (!feedbackToUse.corrections || feedbackToUse.corrections.length === 0) {
-          const score = response.data.score || 0;
-          const corrections = [];
-          
-          if (score >= 90) {
-            corrections.push({ message: '✅ 动作标准，保持！' });
-          } else if (score >= 75) {
-            corrections.push({ message: '🟡 动作良好，注意姿态稳定性' });
-          } else if (score >= 60) {
-            corrections.push({ message: '🟠 姿态需要调整，注意动作规范' });
-          } else {
-            corrections.push({ message: '🔴 动作不规范，建议重新学习标准姿势' });
-          }
-          
-          feedbackToUse.corrections = corrections;
-          feedbackToUse.message = corrections[0].message;
-
-        } else {
-
-        }
-        
-        // 更新反馈数据
         setFeedback(feedbackToUse);
         
         // ✨ 添加到反馈日志 - 使用拍照时的时间戳和实际时长
@@ -165,12 +143,12 @@ export const usePoseRecognition = (exercise) => {
         }
 
       } else {
-        console.error('AI分析失败 - 响应:', response);
+        setAnalysisError(response.message || (currentLanguage === 'zh' ? '姿态分析暂时不可用' : 'Pose analysis is unavailable'));
       }
 
       return response;
     } catch (error) {
-      console.error('Error submitting pose frame:', error);
+      setAnalysisError(error.message);
       return { success: false, message: error.message };
     } finally {
       setIsAnalyzing(false); // ✨ 分析结束
@@ -181,6 +159,7 @@ export const usePoseRecognition = (exercise) => {
     if (!sessionId) return { success: false, message: 'No active session' };
 
     try {
+      activeSession.current = null;
       // ✨ 清除计时器
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -196,6 +175,7 @@ export const usePoseRecognition = (exercise) => {
       });
 
       setIsActive(false);
+      if (!response.success) return response;
 
       // ✨ 返回会话数据供保存（包括sessionId和日志）
       return { 
@@ -222,14 +202,16 @@ export const usePoseRecognition = (exercise) => {
     }
     
     // 重置所有状态
+    activeSession.current = null;
     setSessionId(null);
     setIsActive(false);
     setFeedback(null);
-    setScore(0);
+    setScore(null);
+    setAnalysisError(null);
     setReps(0);
     setDuration(0);
     setCalories(0);
-    setFrameCount(0);
+    frameCount.current = 0;
     setFeedbackLogs([]);
     
     // 重置 ref
@@ -298,18 +280,10 @@ export const usePoseRecognition = (exercise) => {
 
   // ✨ 新增：捕获摄像头帧并提交分析
   const captureFrame = async (cameraReference) => {
-    if (!isActive || !sessionId) {
-
-      return;
-    }
-
+    if (!isActive || !sessionId || captureInFlight.current || !cameraReference?.current) return;
+    captureInFlight.current = true;
     try {
-      const camera = cameraReference?.current;
-      if (!camera) {
-
-        return;
-      }
-
+      const camera = cameraReference.current;
       // ✨ 记录拍照那一瞬间的时间戳
       const captureTimestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
 
@@ -329,35 +303,26 @@ export const usePoseRecognition = (exercise) => {
         isImageMirror: false,
       });
 
-      if (!photo || !photo.base64) {
+      if (!photo?.base64 || activeSession.current !== sessionId) {
         return;
       }
 
       // ✨ 递增帧计数器（避免超出int范围）
-      const currentFrameNumber = frameCount + 1;
-      setFrameCount(currentFrameNumber);
+      const currentFrameNumber = ++frameCount.current;
       
-      // ✨ 计算当前训练时长（秒）
-      const currentDuration = startTimeRef.current 
-        ? Math.floor((Date.now() - startTimeRef.current) / 1000) - pausedDurationRef.current
-        : 0;
-
       // 调用submitFrame来处理（它会调用API并更新状态）- 传递拍照时间戳、当前时长和图片URI
-      const response = await submitFrame({
+      await submitFrame({
         sessionId,
         imageBase64: photo.base64,
         frameNumber: currentFrameNumber, // ✨ 使用小的递增整数
         exerciseName: exercise?.name || exercise?.exerciseName || 'Training', // ✨ 传递运动名称
         language: currentLanguage || 'en', // ✨ 传递当前语言设置
-      }, captureTimestamp, currentDuration, photo.uri); // ✨ 传递拍照时刻的时间戳、当前时长和图片URI
+      }, captureTimestamp, duration, photo.uri); // ✨ 传递拍照时刻的时间戳、当前时长和图片URI
 
-      if (response.success) {
-
-      }
-      
     } catch (error) {
-      console.error('捕获帧失败:', error);
-      // 不要让错误中断训练流程
+      if (activeSession.current === sessionId) setAnalysisError(error.message);
+    } finally {
+      captureInFlight.current = false;
     }
   };
 
@@ -366,6 +331,7 @@ export const usePoseRecognition = (exercise) => {
     sessionId,
     isActive,
     feedback,
+    analysisError,
     score,
     reps,
     duration,

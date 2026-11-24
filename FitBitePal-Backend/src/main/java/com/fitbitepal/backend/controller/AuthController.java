@@ -43,7 +43,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> sendResetCode(
             @Valid @RequestBody ForgotPasswordRequest request) {
         passwordResetService.sendCode(request.getEmail());
-        return ResponseEntity.ok(ApiResponse.success("Verification code sent to your email", null));
+        return ResponseEntity.ok(ApiResponse.success("If the account exists, a verification code will be sent", null));
     }
     
     /**

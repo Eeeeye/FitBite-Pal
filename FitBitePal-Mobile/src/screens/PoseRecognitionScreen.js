@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from '@react-navigation/native'; // ✨ 新增
-import * as FileSystem from 'expo-file-system';
+import { savePoseSessionData } from '../api/pose';
 import { usePoseRecognition } from '../hooks';
 import { useData } from '../contexts/DataContext';
 import { useAppState } from '../contexts/AppStateContext';
@@ -29,7 +29,7 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
   
   const {
     isActive,
-    feedback,
+    analysisError,
     score,
     reps,
     duration,
@@ -71,26 +71,15 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
 
   // ✨ 移除自动启动逻辑，改为手动点击开始按钮
 
-  // Auto-start capturing frames when active and started
+  const captureRef = useRef(captureFrame);
   useEffect(() => {
-    let captureInterval;
-    if (hasStarted && isActive && cameraRef.current) {
+    captureRef.current = captureFrame;
+  }, [captureFrame]);
 
-      captureInterval = setInterval(async () => {
-        if (cameraRef.current && isActive && hasStarted) {
-
-          await captureFrame(cameraRef);
-        }
-      }, 10000); // ✨ 每10秒捕获一次
-    } else if (!isActive && hasStarted) {
-
-    }
-    return () => {
-      if (captureInterval) {
-        clearInterval(captureInterval);
-
-      }
-    };
+  useEffect(() => {
+    if (!hasStarted || !isActive) return;
+    const interval = setInterval(() => captureRef.current(cameraRef), 10000);
+    return () => clearInterval(interval);
   }, [isActive, hasStarted]);
 
   // ✨ 视频录制功能已移除，改用图片保存方案
@@ -146,48 +135,29 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
     try {
       const result = await stopSession();
 
-      // ✨ 保存训练会话数据到后端（包括日志和视频）
-      if (result && result.sessionData) {
-        const sessionData = result.sessionData;
+      if (!result?.success || !result.sessionData) throw new Error(result?.message || 'Session end failed');
+      const sessionData = result.sessionData;
+      const saved = await savePoseSessionData({
+        sessionId: sessionData.sessionId,
+        userId,
+        exerciseName: exercise?.name || exercise?.exerciseName || 'Training',
+        logs: JSON.stringify(sessionData.feedbackLogs || []),
+        duration: sessionData.duration || 0,
+        calories: sessionData.calories || 0,
+        reps: sessionData.reps || 0,
+        videoUri: '',
+      });
+      if (!saved.success) throw new Error(saved.message || 'Session save failed');
 
-
-
-
-
-
-
-
-
-        try {
-          const { savePoseSessionData } = require('../api/pose');
-          const saveResult = await savePoseSessionData({
-            sessionId: sessionData.sessionId,
-            userId: userId,
-            exerciseName: exercise?.name || exercise?.exerciseName || 'Training',
-            logs: JSON.stringify(sessionData.feedbackLogs || []), // ✨ 日志中包含图片URI
-            duration: sessionData.duration || 0,
-            calories: sessionData.calories || 0,
-            reps: sessionData.reps || 0,
-            videoUri: '', // ✨ 不再使用视频
-          });
-          
-          if (saveResult.success) {
-
-          }
-        } catch (saveError) {
-          if (__DEV__) {
-            console.error('保存训练数据异常:', saveError);
-            console.error('错误详情:', saveError.message, saveError.stack);
-          }
-        }
-      }
-      
       // Mark exercise as complete
       if (exercise?.name || exercise?.exerciseName) {
         const exerciseName = exercise.name || exercise.exerciseName || 'Unknown Exercise';
         const exerciseIndex = exercise.id || 0;
 
-        await markExerciseComplete(exerciseIndex, exerciseName, calories);
+        const completed = await markExerciseComplete(exerciseIndex, exerciseName, calories);
+        if (!completed?.success) {
+          throw new Error(completed?.message || (currentLanguage === 'zh' ? '训练记录已保存，完成状态更新失败' : 'Session saved. Completion update failed'));
+        }
       }
       
       Alert.alert(
@@ -213,37 +183,10 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      console.error('停止训练异常:', error);
-      if (__DEV__) {
-        console.error('错误详情:', error.message, error.stack);
-      }
-      
-      // 重置停止标志，即使出错
       setIsStopping(false);
-      
-      // 即使出错也显示完成提示
       Alert.alert(
-        currentLanguage === 'zh' ? '训练完成' : 'Training Complete',
-        currentLanguage === 'zh' 
-          ? '训练已结束，部分数据可能未保存' 
-          : 'Training session ended, some data may not be saved',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              // ✨ 重置所有状态
-
-              resetSession();
-              setVideoUri(null);
-              setIsRecording(false);
-              setHasStarted(false);
-              setFacing('front');
-              
-              // 跳转到回放列表
-              navigation.navigate('PoseHistory');
-            }
-          },
-        ]
+        currentLanguage === 'zh' ? '保存未完成，可重新点击结束' : 'Save incomplete. Tap Finish to retry.',
+        error.message
       );
     }
   };
@@ -308,7 +251,7 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
         />
         
         {/* 姿态得分覆盖层 - 使用绝对定位 */}
-        {score > 0 && (
+        {score != null && (
           <View style={styles.scoreOverlay}>
             <Text style={styles.scoreText}>{Math.floor(score)}</Text>
             <Text style={styles.scoreLabel}>
@@ -375,9 +318,9 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
           </View>
           <View style={styles.poseStatItem}>
             <Text style={styles.poseStatLabel}>
-              {currentLanguage === 'zh' ? '平均得分' : 'Avg Score'}
+              {currentLanguage === 'zh' ? '最近得分' : 'Latest score'}
             </Text>
-            <Text style={styles.poseStatValue}>{score}</Text>
+            <Text style={styles.poseStatValue}>{score ?? '—'}</Text>
           </View>
         </View>
 
@@ -386,6 +329,7 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
           <Text style={styles.feedbackLogsTitle}>
             📊 {currentLanguage === 'zh' ? 'AI反馈日志' : 'AI Feedback Log'}
           </Text>
+          {analysisError && <Text style={styles.feedbackLogMessage}>{analysisError}</Text>}
           <ScrollView 
             ref={scrollViewRef}
             style={styles.feedbackLogsList}
@@ -408,7 +352,8 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
                     </View>
                     <View style={styles.feedbackLogStats}>
                       <Text style={styles.feedbackLogStat}>
-                        {currentLanguage === 'zh' ? '得分' : 'Score'}: {log.score || 0}
+                        {log.feedback?.demo && (currentLanguage === 'zh' ? '演示 · ' : 'Demo · ')}
+                        {currentLanguage === 'zh' ? '得分' : 'Score'}: {log.score}
                       </Text>
                     </View>
                   </View>
@@ -420,7 +365,7 @@ export const PoseRecognitionScreen = ({ navigation, route }) => {
                     ))
                   ) : (
                     <Text style={styles.feedbackLogMessage}>
-                      {log.score >= 90 ? '✅ 姿态标准' : log.score >= 75 ? '🟡 姿态良好' : '🔴 需要调整'}
+                      {currentLanguage === 'zh' ? '本帧没有动作建议' : 'No suggestions for this frame'}
                     </Text>
                   )}
                 </View>

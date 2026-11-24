@@ -44,7 +44,7 @@ export const analyzePoseWithAI = async (exerciseInfo, userDescription = '') => {
       duration: exerciseInfo.duration,
       userFeedback: userDescription,
     }));
-    return response || '姿势正确！保持当前动作，注意呼吸节奏。';
+    return response;
   } catch (error) {
     console.error('Pose analysis error:', error);
     return '无法连接到AI服务。请检查网络连接或稍后重试。';
@@ -60,68 +60,36 @@ export const analyzePoseWithAI = async (exerciseInfo, userDescription = '') => {
  * @returns {Promise<Object>} 食物营养信息和建议
  */
 export const analyzeFoodWithAI = async (imageUri, userProfile = {}, language = 'zh', userId = null) => {
-  try {
-    const backendResult = await recognizeFoodViaBackend(imageUri, userProfile, language, userId);
-    if (backendResult) {
-      return backendResult;
-    }
-  } catch (error) {
-    console.error('Food analysis error:', error);
+  const payload = { userId: userId || userProfile?.id || null };
+  if (isRemoteImageUri(imageUri)) {
+    payload.imageUrl = imageUri;
+  } else {
+    payload.imageBase64 = await convertImageToBase64(imageUri);
   }
 
-  return {
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    foodName: language === 'zh' ? '未识别' : 'Unrecognized',
-    ingredients: [],
-    advice: language === 'zh' ? '无法连接到AI服务。请检查网络连接或稍后重试。' : 'Unable to connect to AI service. Please check your network connection and try again.',
-  };
-};
-
-const recognizeFoodViaBackend = async (imageUri, userProfile, language, userId) => {
-  try {
-    const payload = {
-      userId: userId || userProfile?.id || null,
-    };
-
-    if (!isRemoteImageUri(imageUri)) {
-      const base64 = await convertImageToBase64(imageUri);
-      payload.imageBase64 = base64;
-    } else {
-      payload.imageUrl = imageUri;
-    }
-
-    const response = await apiClient.post('/ai/food/recognize', payload, {
-      timeout: AI_REQUEST_TIMEOUT_MS,
-    });
-    if (!response?.success || !response.data) {
-      return null;
-    }
-
-    return mapBackendFoodRecognition(response.data, userProfile, language);
-  } catch (error) {
-    console.error('Backend food recognition error:', error);
-    return null;
+  const response = await apiClient.post('/ai/food/recognize', payload, { timeout: AI_REQUEST_TIMEOUT_MS });
+  if (!response?.success || !response.data) {
+    throw new Error(response?.message || (language === 'zh' ? '食物识别暂时不可用' : 'Food recognition is unavailable'));
   }
+  return mapBackendFoodRecognition(response.data, userProfile, language);
 };
 
 const mapBackendFoodRecognition = (data, userProfile, language) => {
   const foods = Array.isArray(data.foods) ? data.foods : [];
   const totalNutrition = data.totalNutrition || {};
-  const primaryFood = foods[0] || {};
-  const primaryNutrition = primaryFood.nutrition || {};
+  if (foods.length === 0 || ['calories', 'protein', 'carbs', 'fat'].some(key => !Number.isFinite(totalNutrition[key]))) {
+    throw new Error(language === 'zh' ? '未能取得完整的营养数据，请重新选择照片' : 'Nutrition data is incomplete. Please select another photo.');
+  }
 
   const ingredients = foods.map((food) => ({
     name: food.name,
     amount: food.estimatedWeight ? `${Math.round(food.estimatedWeight)}g` : '',
   }));
 
-  const calories = Math.round(totalNutrition.calories ?? primaryNutrition.calories ?? 0);
-  const protein = Math.round(totalNutrition.protein ?? primaryNutrition.protein ?? 0);
-  const carbs = Math.round(totalNutrition.carbs ?? primaryNutrition.carbs ?? 0);
-  const fat = Math.round(totalNutrition.fat ?? primaryNutrition.fat ?? 0);
+  const calories = Math.round(totalNutrition.calories);
+  const protein = Math.round(totalNutrition.protein);
+  const carbs = Math.round(totalNutrition.carbs);
+  const fat = Math.round(totalNutrition.fat);
 
   return {
     calories,
@@ -129,7 +97,6 @@ const mapBackendFoodRecognition = (data, userProfile, language) => {
     carbs,
     fat,
     foodName: foods.map((food) => food.name).filter(Boolean).slice(0, 2).join(' + ')
-      || primaryFood.name
       || (language === 'zh' ? '已识别食物' : 'Recognized Food'),
     ingredients,
     advice: buildBackendFoodAdvice({ calories, protein, carbs, fat }, userProfile, language),
@@ -167,7 +134,7 @@ export const analyzePoseImageWithAI = async (imageUri, exerciseInfo) => {
     
     return {
       feedback: response,
-      isCorrect: response.includes('正确') || response.includes('标准') || response.includes('good'),
+      isCorrect: null,
       suggestions: extractSuggestions(response),
     };
   } catch (error) {
@@ -200,7 +167,7 @@ export const getTrainingAdviceFromAI = async (userProfile, question = '') => {
     };
 
     const response = await requestAdvice('fitness', prompt, JSON.stringify(context));
-    return response || '保持规律训练，循序渐进，注意休息和营养补充。';
+    return response;
   } catch (error) {
     console.error('Training advice error:', error);
     return '无法连接到AI服务。请检查网络连接或稍后重试。';
@@ -227,7 +194,7 @@ export const getDietAdviceFromAI = async (userProfile, question = '') => {
     };
 
     const response = await requestAdvice('nutrition', prompt, JSON.stringify(context));
-    return response || '保持均衡饮食，摄入足够的蛋白质、碳水和健康脂肪。';
+    return response;
   } catch (error) {
     console.error('Diet advice error:', error);
     return '无法连接到AI服务。请检查网络连接或稍后重试。';

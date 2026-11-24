@@ -1,0 +1,18 @@
+# Isolated development mailbox. This profile ignores provider credentials.
+spring:
+  mail:
+    host: ${FITBITE_MAILPIT_HOST:127.0.0.1}
+    port: ${FITBITE_MAILPIT_PORT:1025}
+    username: ""
+    password: ""
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            required: false
+app:
+  security:
+    mail:
+      from: noreply@fitbite.test

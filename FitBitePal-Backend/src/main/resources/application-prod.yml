@@ -63,7 +63,7 @@ spring:
             enable: true
             required: true
           ssl:
-            trust: ${MAIL_HOST:smtp.qq.com}
+            checkserveridentity: true
             protocols: TLSv1.2 TLSv1.3
           timeout: 15000
           connectiontimeout: 15000
@@ -103,8 +103,7 @@ logging:
 
 # 跨域配置 (生产环境限制来源)
 cors:
-  allowed-origins: 
-    - ${CORS_ALLOWED_ORIGINS:https://fitbitepal.com}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://fitbitepal.com}
   allowed-methods:
     - GET
     - POST
@@ -119,7 +118,6 @@ cors:
 app:
   security:
     verification-code:
-      length: ${VERIFICATION_CODE_LENGTH:6}
       ttl-minutes: ${VERIFICATION_CODE_TTL_MINUTES:5}
     mail:
       from: ${MAIL_FROM}

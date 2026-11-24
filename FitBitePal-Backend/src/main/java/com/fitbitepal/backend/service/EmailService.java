@@ -2,98 +2,82 @@ package com.fitbitepal.backend.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.lang.NonNull;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.mail.MailException;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
-/**
- * 邮件发送与验证码管理服务
- */
 @Service
 @RequiredArgsConstructor
 public class EmailService {
+    private static final String KEY_PREFIX = "fitbitepal:password-reset:";
+    private static final RedisScript<Long> ISSUE = script("issue");
+    private static final RedisScript<Long> CHECK = script("check");
+    private static final RedisScript<Long> CANCEL = script("cancel");
+    private static final int ATTEMPT_LIMIT = 5;
+    private static final int RESEND_SECONDS = 60;
 
     private final JavaMailSender mailSender;
-    private final StringRedisTemplate stringRedisTemplate;
-    private final SecureRandom secureRandom = new SecureRandom();
-
-    @Value("${app.security.verification-code.length:6}")
-    private int codeLength;
+    private final StringRedisTemplate redis;
+    private final SecureRandom random = new SecureRandom();
 
     @Value("${app.security.verification-code.ttl-minutes:5}")
     private long codeTtlMinutes;
 
-    @Value("${app.security.mail.from:noreply@fitbitepal.com}")
+    @Value("${app.security.mail.from:noreply@fitbite.test}")
     private String mailFrom;
 
-    private static final String CACHE_KEY_PREFIX = "fitbitepal:password-reset:";
+    private static RedisScript<Long> script(String name) {
+        return RedisScript.of(new ClassPathResource("redis/reset-" + name + ".lua"), Long.class);
+    }
 
-    private static final DefaultRedisScript<Long> CONSUME_CODE = new DefaultRedisScript<>("""
-            if redis.call('GET', KEYS[1]) == ARGV[1] then
-                return redis.call('DEL', KEYS[1])
-            end
-            return 0
-            """, Long.class);
-
-    /**
-     * 发送验证码邮件
-     */
-    public void sendVerificationCode(@NonNull String email) {
-        String code = generateCode();
-        Duration ttl = Duration.ofMinutes(Math.max(1, codeTtlMinutes));
-        stringRedisTemplate.opsForValue().set(buildCacheKey(email), code, ttl);
+    public void sendVerificationCode(String address) {
+        String code = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
+        String issueId = UUID.randomUUID().toString();
+        List<String> key = key(address);
+        long ttl = Duration.ofMinutes(Math.max(1, codeTtlMinutes)).toSeconds();
+        Long issued = redis.execute(ISSUE, key, code, issueId, Long.toString(ttl),
+                Integer.toString(RESEND_SECONDS));
+        if (!Long.valueOf(1).equals(issued)) {
+            return;
+        }
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(mailFrom);
+        message.setTo(address);
+        message.setSubject("FitBitePal - Password Reset Code");
+        message.setText("Your verification code is " + code + ". It will expire in " + ttl / 60
+                + " minutes.\n\nIf you did not request this, please ignore this email.");
         try {
-            sendEmail(email, code);
+            mailSender.send(message);
         } catch (MailException ex) {
-            // A newer delivery may have replaced this code while SMTP was pending.
-            consumeCode(email, code);
+            redis.execute(CANCEL, key, issueId);
             throw new IllegalStateException("Failed to send verification email", ex);
         }
     }
 
-    /**
-     * 验证用户输入的验证码
-     */
-    public boolean verifyCode(@NonNull String email, @NonNull String code) {
-        return code.equals(stringRedisTemplate.opsForValue().get(buildCacheKey(email)));
+    public boolean verifyCode(String address, String code) {
+        return check(address, code, false);
     }
 
-    public boolean consumeCode(String email, String code) {
-        Long consumed = stringRedisTemplate.execute(CONSUME_CODE, List.of(buildCacheKey(email)), code);
-        return Long.valueOf(1).equals(consumed);
+    public boolean consumeCode(String address, String code) {
+        return check(address, code, true);
     }
 
-    private void sendEmail(@NonNull String email, @NonNull String code) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailFrom);
-        message.setTo(email);
-        message.setSubject("FitBitePal - Password Reset Code");
-        message.setText(String.format(
-                "Your verification code is %s. It will expire in %d minutes.\n\nIf you did not request this, please ignore this email.",
-                code,
-                codeTtlMinutes
-        ));
-        mailSender.send(message);
+    private boolean check(String address, String code, boolean consume) {
+        return Long.valueOf(1).equals(redis.execute(CHECK, key(address), code,
+                consume ? "1" : "0", Integer.toString(ATTEMPT_LIMIT)));
     }
 
-    private String generateCode() {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < codeLength; i++) {
-            builder.append(secureRandom.nextInt(10));
-        }
-        return builder.toString();
-    }
-
-    private String buildCacheKey(@NonNull String email) {
-        return CACHE_KEY_PREFIX + email.toLowerCase(Locale.ROOT);
+    private List<String> key(String address) {
+        return List.of(KEY_PREFIX + address.toLowerCase(Locale.ROOT));
     }
 }

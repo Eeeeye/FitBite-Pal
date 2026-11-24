@@ -1,0 +1,18 @@
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    ports:
+      - "127.0.0.1:${FITBITE_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${FITBITE_INBOX_PORT:-8025}:8025"
+    environment:
+      MP_MAX_MESSAGES: "100"
+    networks:
+      - fitbitepal-network
+
+  backend:
+    depends_on:
+      mailpit:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: localmail
+      FITBITE_MAILPIT_HOST: mailpit
