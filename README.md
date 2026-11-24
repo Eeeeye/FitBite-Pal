@@ -205,6 +205,7 @@ Main endpoint groups:
 | [API_DOCUMENTATION.md](API_DOCUMENTATION.md) | REST API reference |
 | [重构审计](docs/重构审计.md) | Data integrity, authorization, migration and verification evidence (Chinese) |
 | [Home and published-plan benchmarks](docs/performance/home-plan.md) | Before-and-after latency, throughput, InnoDB lock waits and reproduction steps (Chinese) |
+| [JWT startup benchmark](docs/performance/jwt-startup.md) | Fresh-process authentication errors, latency and first-login checks (Chinese) |
 | [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) | Docker deployment guide |
 | [TEST_REPORT.md](TEST_REPORT.md) | Test cases and results |
 | [SRS.md](SRS.md) | Software requirements specification |

@@ -1,107 +1,66 @@
 package com.fitbitepal.backend.util;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.io.Serializer;
+import io.jsonwebtoken.jackson.io.JacksonDeserializer;
+import io.jsonwebtoken.jackson.io.JacksonSerializer;
 import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 @Component
 public class JwtUtil {
-    
-    private static final Logger logger = LoggerFactory.getLogger(JwtUtil.class);
-    
-    @Value("${jwt.secret}")
-    private String secret;
-    
-    @Value("${jwt.expiration}")
-    private Long expiration;
-    
-    /**
-     * 生成密钥
-     */
-    private Key getSigningKey() {
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private final SecretKey signingKey;
+    private final JwtParser parser;
+    private final Serializer<Map<String, ?>> serializer;
+    private final long expiration;
+
+    public JwtUtil(@Value("${jwt.secret}") String secret, @Value("${jwt.expiration}") long expiration) {
+        signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        serializer = new JacksonSerializer<>();
+        parser = Jwts.parser().json(new JacksonDeserializer<>()).verifyWith(signingKey).build();
+        this.expiration = expiration;
     }
-    
-    /**
-     * 生成Token
-     */
+
     public String generateToken(Long userId, String username) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId);
-        claims.put("username", username);
-        
-        return Jwts.builder()
-                .claims(claims)
+        long now = System.currentTimeMillis();
+        // Builders hold mutable claims. Only the configured codec, parser and key are shared.
+        return Jwts.builder().json(serializer)
+                .claim("userId", userId)
+                .claim("username", username)
                 .subject(username)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey())
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + expiration))
+                .signWith(signingKey)
                 .compact();
     }
-    
-    /**
-     * 从Token中获取用户ID
-     */
+
     public Long getUserIdFromToken(String token) {
-        Claims claims = getClaimsFromToken(token);
-        return claims.get("userId", Long.class);
+        return claims(token).get("userId", Long.class);
     }
-    
-    /**
-     * 从Token中获取用户名
-     */
+
     public String getUsernameFromToken(String token) {
-        return getClaimsFromToken(token).getSubject();
+        return claims(token).getSubject();
     }
-    
-    /**
-     * 验证Token
-     */
+
     public boolean validateToken(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith((javax.crypto.SecretKey) getSigningKey())
-                    .build()
-                    .parseSignedClaims(token);
+            claims(token);
             return true;
-        } catch (SignatureException e) {
-            logger.error("Invalid JWT signature: {}", e.getMessage());
-        } catch (MalformedJwtException e) {
-            logger.error("Invalid JWT token: {}", e.getMessage());
-        } catch (ExpiredJwtException e) {
-            logger.error("JWT token is expired: {}", e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            logger.error("JWT token is unsupported: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            logger.error("JWT claims string is empty: {}", e.getMessage());
+        } catch (JwtException | IllegalArgumentException ex) {
+            return false;
         }
-        return false;
     }
-    
-    /**
-     * 获取Claims
-     */
-    private Claims getClaimsFromToken(String token) {
-        return Jwts.parser()
-                .verifyWith((javax.crypto.SecretKey) getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+
+    private Claims claims(String token) {
+        return parser.parseSignedClaims(token).getPayload();
     }
 }
-

@@ -152,3 +152,21 @@ stop_app "$before_pid"
 ```
 
 锁驱动在每一轮交换版本顺序，独立核对计划 ID 与打卡幂等性。比较相同场景、相同版本轮次的读写 P95/P99、`row_lock_waits` 与 `row_lock_wait_ms`。持锁实验额外报告 `finished_before_unlock`。结果文件保存在 `$bench_dir` 中。确认已留存所需的结果后，清理本次专用数据库、账号与临时凭据。
+
+## JWT 冷启动对照
+
+这个实验单独启动每个待测 JAR。使用独立的本机 MySQL、Redis 与 Mailpit，准备名为 `fitbite_jwt` 的空库，导入后端的 `src/main/resources/db/baseline/mysql8.sql`，并确保测试账号有权读写该库。Redis DB 11 用于测试会员资料缓存。构建第 1 节的两份 JAR 时，将此项实验的基线提交换成 `42d5ec2`。结果对照见[冷启动报告](../../docs/performance/jwt-startup.md)。
+
+以下环境变量对应测试服务。数据库用户名和密码通过环境传入。脚本自行生成本次运行共用的临时签名密钥和会员密码，只向自己启动的回环地址上的服务发出正常会员请求。
+
+```bash
+export PERF_MYSQL_PORT=3306 REDIS_PORT=6379 FITBITE_MAILPIT_PORT=1025
+export SPRING_DATASOURCE_USERNAME=fitbite_perf_app
+: "${SPRING_DATASOURCE_PASSWORD:?请设置测试库账号密码}"
+python3 scripts/perf/jwt-startup.py --before "$bench_dir/before.jar" --after "$bench_dir/after.jar" \
+  --clients 32 --rounds 10 --operation profile --output "$bench_dir/jwt-profile.json"
+python3 scripts/perf/jwt-startup.py --before "$bench_dir/before.jar" --after "$bench_dir/after.jar" \
+  --clients 32 --rounds 4 --operation login --output "$bench_dir/jwt-login.json"
+```
+
+`profile` 用独立进程准备好已有会员和有效令牌，重启后先检查匿名健康端点，再直接并发读取各自资料。`login` 在重启后并发登录，再用每个成功签发的令牌读取本人资料。两种场景均逐条核对身份。两版轮换先后顺序，每轮重启应用，数据库与 Redis 保持运行。每轮输出包含 HTTP 状态计数、应用就绪耗时、全部请求及成功请求的 P50/P95/P99；不会写出令牌或密码。脚本在候选版有失败时以非零状态退出。

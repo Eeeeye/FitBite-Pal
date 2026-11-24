@@ -2,6 +2,7 @@ package com.fitbitepal.backend.security;
 
 import com.fitbitepal.backend.repository.UserRepository;
 import com.fitbitepal.backend.util.JwtUtil;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,14 +42,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        final String token = authHeader.substring(7);
-
-        if (!jwtUtil.validateToken(token)) {
+        Long userId;
+        try {
+            userId = jwtUtil.getUserIdFromToken(authHeader.substring(7));
+        } catch (JwtException | IllegalArgumentException invalidToken) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        Long userId = jwtUtil.getUserIdFromToken(token);
 
         if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             userRepository.findById(userId).ifPresent(user -> {

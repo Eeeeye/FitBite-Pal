@@ -55,6 +55,6 @@
 
 - 首页服务使用 Spring 生产配置、JDK 21、384 MiB 固定 JVM 堆、Hikari 最大 20 个连接。实际运行 MySQL 8.0.44（InnoDB，REPEATABLE READ，256 MiB 缓冲池）和 Redis 7.2.7。两个版本读取同一份专用首页数据库。32 个合成账号有 90 天历史，共 17,280 条完成记录、1,632 条训练计划明细、2,848 条打卡记录。
 - 首页每次切换版本都重启应用并重置专用 Redis 库。开始计时前先登录、串行预热受保护路径，然后再完成 64 次预热访问。每个虚拟用户复用最多 6 个 HTTP 连接。锁实验使用分别初始化的 MySQL 库和 Redis 逻辑库，计时不与首页负载重叠。
-- 基线在首次并发预跑中出现过 HTTP 500。堆栈为 `JwtUtil.validateToken → DefaultJwtParserBuilder.build → ServiceLoader`，异常为 `NoSuchElementException`。两版正式对照统一采用预热流程。上述零错误覆盖正式计时阶段，鉴权冷启动仍需单独处理和验证。
+- 基线在首次并发预跑中出现过 HTTP 500。堆栈为 `JwtUtil.validateToken → DefaultJwtParserBuilder.build → ServiceLoader`，异常为 `NoSuchElementException`。两版正式对照统一采用预热流程。上述零错误覆盖正式计时阶段，后续已单独修复并复测了[JWT 并发冷启动](jwt-startup.md)。
 
 最终后端构建通过 44 项测试，包含真实 MySQL 和 Redis 的并发集成用例。移动端 9 项自动测试通过，Android 与 iOS 均完成生产模式 Hermes 资源导出。

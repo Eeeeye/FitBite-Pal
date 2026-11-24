@@ -1,0 +1,1042 @@
+{
+  "baseline": "42d5ec2",
+  "date": "2026-11-25",
+  "profile": {
+    "operation": "profile",
+    "clients": 32,
+    "roundsPerVersion": 10,
+    "runs": [
+      {
+        "trial": 1,
+        "version": "before",
+        "readyMs": 4244.25,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 144.56,
+            "p95": 147.79,
+            "p99": 147.91
+          },
+          "successMs": {
+            "p50": 144.56,
+            "p95": 147.79,
+            "p99": 147.91
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 40.23,
+            "p95": 47.79,
+            "p99": 48.11
+          },
+          "successMs": {
+            "p50": 40.23,
+            "p95": 47.79,
+            "p99": 48.11
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 1,
+        "version": "after",
+        "readyMs": 4547.22,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 109.82,
+            "p95": 111.21,
+            "p99": 111.24
+          },
+          "successMs": {
+            "p50": 109.82,
+            "p95": 111.21,
+            "p99": 111.24
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 35.93,
+            "p95": 47.87,
+            "p99": 48.41
+          },
+          "successMs": {
+            "p50": 35.93,
+            "p95": 47.87,
+            "p99": 48.41
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 2,
+        "version": "after",
+        "readyMs": 4369.65,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 126.03,
+            "p95": 128.37,
+            "p99": 128.46
+          },
+          "successMs": {
+            "p50": 126.03,
+            "p95": 128.37,
+            "p99": 128.46
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 29.0,
+            "p95": 34.8,
+            "p99": 35.61
+          },
+          "successMs": {
+            "p50": 29.0,
+            "p95": 34.8,
+            "p99": 35.61
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 2,
+        "version": "before",
+        "readyMs": 4202.15,
+        "first": {
+          "outcomes": {
+            "200": 19,
+            "500": 13
+          },
+          "allMs": {
+            "p50": 131.57,
+            "p95": 133.16,
+            "p99": 133.19
+          },
+          "successMs": {
+            "p50": 132.03,
+            "p95": 133.19,
+            "p99": 133.19
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 36.06,
+            "p95": 47.07,
+            "p99": 47.72
+          },
+          "successMs": {
+            "p50": 36.06,
+            "p95": 47.07,
+            "p99": 47.72
+          }
+        },
+        "jwtProviderStack": true
+      },
+      {
+        "trial": 3,
+        "version": "before",
+        "readyMs": 4378.79,
+        "first": {
+          "outcomes": {
+            "200": 18,
+            "500": 14
+          },
+          "allMs": {
+            "p50": 135.69,
+            "p95": 136.9,
+            "p99": 136.96
+          },
+          "successMs": {
+            "p50": 136.22,
+            "p95": 136.96,
+            "p99": 136.96
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 27.87,
+            "p95": 38.02,
+            "p99": 40.22
+          },
+          "successMs": {
+            "p50": 27.87,
+            "p95": 38.02,
+            "p99": 40.22
+          }
+        },
+        "jwtProviderStack": true
+      },
+      {
+        "trial": 3,
+        "version": "after",
+        "readyMs": 4477.66,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 112.25,
+            "p95": 113.37,
+            "p99": 113.76
+          },
+          "successMs": {
+            "p50": 112.25,
+            "p95": 113.37,
+            "p99": 113.76
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 32.42,
+            "p95": 40.29,
+            "p99": 40.64
+          },
+          "successMs": {
+            "p50": 32.42,
+            "p95": 40.29,
+            "p99": 40.64
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 4,
+        "version": "after",
+        "readyMs": 4335.47,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 107.09,
+            "p95": 108.36,
+            "p99": 108.47
+          },
+          "successMs": {
+            "p50": 107.09,
+            "p95": 108.36,
+            "p99": 108.47
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 25.47,
+            "p95": 32.15,
+            "p99": 33.64
+          },
+          "successMs": {
+            "p50": 25.47,
+            "p95": 32.15,
+            "p99": 33.64
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 4,
+        "version": "before",
+        "readyMs": 4424.65,
+        "first": {
+          "outcomes": {
+            "200": 31,
+            "500": 1
+          },
+          "allMs": {
+            "p50": 127.75,
+            "p95": 128.67,
+            "p99": 128.87
+          },
+          "successMs": {
+            "p50": 127.84,
+            "p95": 128.67,
+            "p99": 128.87
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 33.02,
+            "p95": 41.55,
+            "p99": 41.59
+          },
+          "successMs": {
+            "p50": 33.02,
+            "p95": 41.55,
+            "p99": 41.59
+          }
+        },
+        "jwtProviderStack": true
+      },
+      {
+        "trial": 5,
+        "version": "before",
+        "readyMs": 4545.15,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 131.63,
+            "p95": 133.55,
+            "p99": 133.71
+          },
+          "successMs": {
+            "p50": 131.63,
+            "p95": 133.55,
+            "p99": 133.71
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 24.31,
+            "p95": 31.46,
+            "p99": 32.27
+          },
+          "successMs": {
+            "p50": 24.31,
+            "p95": 31.46,
+            "p99": 32.27
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 5,
+        "version": "after",
+        "readyMs": 4384.14,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 102.1,
+            "p95": 103.24,
+            "p99": 103.33
+          },
+          "successMs": {
+            "p50": 102.1,
+            "p95": 103.24,
+            "p99": 103.33
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 29.69,
+            "p95": 37.27,
+            "p99": 38.0
+          },
+          "successMs": {
+            "p50": 29.69,
+            "p95": 37.27,
+            "p99": 38.0
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 6,
+        "version": "after",
+        "readyMs": 4491.47,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 110.64,
+            "p95": 111.44,
+            "p99": 111.57
+          },
+          "successMs": {
+            "p50": 110.64,
+            "p95": 111.44,
+            "p99": 111.57
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 38.98,
+            "p95": 44.87,
+            "p99": 45.06
+          },
+          "successMs": {
+            "p50": 38.98,
+            "p95": 44.87,
+            "p99": 45.06
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 6,
+        "version": "before",
+        "readyMs": 4380.19,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 141.61,
+            "p95": 142.61,
+            "p99": 142.8
+          },
+          "successMs": {
+            "p50": 141.61,
+            "p95": 142.61,
+            "p99": 142.8
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 39.78,
+            "p95": 46.27,
+            "p99": 47.16
+          },
+          "successMs": {
+            "p50": 39.78,
+            "p95": 46.27,
+            "p99": 47.16
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 7,
+        "version": "before",
+        "readyMs": 4358.93,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 152.08,
+            "p95": 154.19,
+            "p99": 154.51
+          },
+          "successMs": {
+            "p50": 152.08,
+            "p95": 154.19,
+            "p99": 154.51
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 39.01,
+            "p95": 43.41,
+            "p99": 43.45
+          },
+          "successMs": {
+            "p50": 39.01,
+            "p95": 43.41,
+            "p99": 43.45
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 7,
+        "version": "after",
+        "readyMs": 4507.54,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 110.17,
+            "p95": 111.58,
+            "p99": 111.78
+          },
+          "successMs": {
+            "p50": 110.17,
+            "p95": 111.58,
+            "p99": 111.78
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 26.62,
+            "p95": 35.02,
+            "p99": 35.54
+          },
+          "successMs": {
+            "p50": 26.62,
+            "p95": 35.02,
+            "p99": 35.54
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 8,
+        "version": "after",
+        "readyMs": 4346.14,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 110.68,
+            "p95": 113.31,
+            "p99": 113.34
+          },
+          "successMs": {
+            "p50": 110.68,
+            "p95": 113.31,
+            "p99": 113.34
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 32.11,
+            "p95": 40.49,
+            "p99": 40.9
+          },
+          "successMs": {
+            "p50": 32.11,
+            "p95": 40.49,
+            "p99": 40.9
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 8,
+        "version": "before",
+        "readyMs": 4272.34,
+        "first": {
+          "outcomes": {
+            "200": 28,
+            "500": 4
+          },
+          "allMs": {
+            "p50": 139.19,
+            "p95": 140.9,
+            "p99": 140.92
+          },
+          "successMs": {
+            "p50": 139.32,
+            "p95": 140.9,
+            "p99": 140.92
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 26.44,
+            "p95": 35.82,
+            "p99": 38.66
+          },
+          "successMs": {
+            "p50": 26.44,
+            "p95": 35.82,
+            "p99": 38.66
+          }
+        },
+        "jwtProviderStack": true
+      },
+      {
+        "trial": 9,
+        "version": "before",
+        "readyMs": 4401.8,
+        "first": {
+          "outcomes": {
+            "200": 30,
+            "500": 2
+          },
+          "allMs": {
+            "p50": 135.63,
+            "p95": 137.03,
+            "p99": 137.07
+          },
+          "successMs": {
+            "p50": 135.68,
+            "p95": 137.03,
+            "p99": 137.07
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 28.36,
+            "p95": 34.23,
+            "p99": 34.58
+          },
+          "successMs": {
+            "p50": 28.36,
+            "p95": 34.23,
+            "p99": 34.58
+          }
+        },
+        "jwtProviderStack": true
+      },
+      {
+        "trial": 9,
+        "version": "after",
+        "readyMs": 4225.28,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 141.75,
+            "p95": 145.87,
+            "p99": 146.06
+          },
+          "successMs": {
+            "p50": 141.75,
+            "p95": 145.87,
+            "p99": 146.06
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 45.07,
+            "p95": 54.47,
+            "p99": 56.09
+          },
+          "successMs": {
+            "p50": 45.07,
+            "p95": 54.47,
+            "p99": 56.09
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 10,
+        "version": "after",
+        "readyMs": 4275.26,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 110.81,
+            "p95": 112.49,
+            "p99": 112.7
+          },
+          "successMs": {
+            "p50": 110.81,
+            "p95": 112.49,
+            "p99": 112.7
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 26.26,
+            "p95": 31.44,
+            "p99": 31.58
+          },
+          "successMs": {
+            "p50": 26.26,
+            "p95": 31.44,
+            "p99": 31.58
+          }
+        },
+        "jwtProviderStack": false
+      },
+      {
+        "trial": 10,
+        "version": "before",
+        "readyMs": 4193.71,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 136.15,
+            "p95": 138.0,
+            "p99": 138.15
+          },
+          "successMs": {
+            "p50": 136.15,
+            "p95": 138.0,
+            "p99": 138.15
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 34.59,
+            "p95": 46.24,
+            "p99": 46.61
+          },
+          "successMs": {
+            "p50": 34.59,
+            "p95": 46.24,
+            "p99": 46.61
+          }
+        },
+        "jwtProviderStack": false
+      }
+    ]
+  },
+  "login": {
+    "operation": "login",
+    "clients": 32,
+    "roundsPerVersion": 4,
+    "runs": [
+      {
+        "trial": 1,
+        "version": "before",
+        "readyMs": 4125.08,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 473.91,
+            "p95": 477.84,
+            "p99": 478.84
+          },
+          "successMs": {
+            "p50": 473.91,
+            "p95": 477.84,
+            "p99": 478.84
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 31,
+            "500": 1
+          },
+          "allMs": {
+            "p50": 87.36,
+            "p95": 89.2,
+            "p99": 89.26
+          },
+          "successMs": {
+            "p50": 87.6,
+            "p95": 89.2,
+            "p99": 89.26
+          }
+        },
+        "jwtProviderStack": true,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 1,
+        "version": "after",
+        "readyMs": 4487.14,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 441.23,
+            "p95": 453.47,
+            "p99": 456.63
+          },
+          "successMs": {
+            "p50": 441.23,
+            "p95": 453.47,
+            "p99": 456.63
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 71.85,
+            "p95": 72.79,
+            "p99": 72.81
+          },
+          "successMs": {
+            "p50": 71.85,
+            "p95": 72.79,
+            "p99": 72.81
+          }
+        },
+        "jwtProviderStack": false,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 2,
+        "version": "after",
+        "readyMs": 4094.31,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 495.54,
+            "p95": 521.29,
+            "p99": 522.37
+          },
+          "successMs": {
+            "p50": 495.54,
+            "p95": 521.29,
+            "p99": 522.37
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 63.2,
+            "p95": 64.72,
+            "p99": 64.82
+          },
+          "successMs": {
+            "p50": 63.2,
+            "p95": 64.72,
+            "p99": 64.82
+          }
+        },
+        "jwtProviderStack": false,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 2,
+        "version": "before",
+        "readyMs": 4198.19,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 428.49,
+            "p95": 446.06,
+            "p99": 450.93
+          },
+          "successMs": {
+            "p50": 428.49,
+            "p95": 446.06,
+            "p99": 450.93
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 74.4,
+            "p95": 75.3,
+            "p99": 75.48
+          },
+          "successMs": {
+            "p50": 74.4,
+            "p95": 75.3,
+            "p99": 75.48
+          }
+        },
+        "jwtProviderStack": false,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 3,
+        "version": "before",
+        "readyMs": 3978.66,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 538.47,
+            "p95": 543.48,
+            "p99": 543.78
+          },
+          "successMs": {
+            "p50": 538.47,
+            "p95": 543.48,
+            "p99": 543.78
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 29,
+            "500": 3
+          },
+          "allMs": {
+            "p50": 81.25,
+            "p95": 82.68,
+            "p99": 83.29
+          },
+          "successMs": {
+            "p50": 81.42,
+            "p95": 82.68,
+            "p99": 83.29
+          }
+        },
+        "jwtProviderStack": true,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 3,
+        "version": "after",
+        "readyMs": 4243.67,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 455.66,
+            "p95": 465.62,
+            "p99": 471.43
+          },
+          "successMs": {
+            "p50": 455.66,
+            "p95": 465.62,
+            "p99": 471.43
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 61.84,
+            "p95": 64.01,
+            "p99": 65.22
+          },
+          "successMs": {
+            "p50": 61.84,
+            "p95": 64.01,
+            "p99": 65.22
+          }
+        },
+        "jwtProviderStack": false,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 4,
+        "version": "after",
+        "readyMs": 4077.7,
+        "first": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 498.28,
+            "p95": 507.68,
+            "p99": 509.05
+          },
+          "successMs": {
+            "p50": 498.28,
+            "p95": 507.68,
+            "p99": 509.05
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 32
+          },
+          "allMs": {
+            "p50": 58.75,
+            "p95": 60.54,
+            "p99": 61.11
+          },
+          "successMs": {
+            "p50": 58.75,
+            "p95": 60.54,
+            "p99": 61.11
+          }
+        },
+        "jwtProviderStack": false,
+        "jwtSigningProviderStack": false
+      },
+      {
+        "trial": 4,
+        "version": "before",
+        "readyMs": 4183.1,
+        "first": {
+          "outcomes": {
+            "200": 26,
+            "500": 6
+          },
+          "allMs": {
+            "p50": 435.45,
+            "p95": 437.63,
+            "p99": 437.71
+          },
+          "successMs": {
+            "p50": 435.46,
+            "p95": 437.63,
+            "p99": 437.71
+          }
+        },
+        "second": {
+          "outcomes": {
+            "200": 26
+          },
+          "allMs": {
+            "p50": 67.92,
+            "p95": 68.92,
+            "p99": 69.11
+          },
+          "successMs": {
+            "p50": 67.92,
+            "p95": 68.92,
+            "p99": 69.11
+          }
+        },
+        "jwtProviderStack": false,
+        "jwtSigningProviderStack": true
+      }
+    ]
+  }
+}
