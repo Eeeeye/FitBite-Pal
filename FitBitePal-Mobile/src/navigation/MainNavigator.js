@@ -2,7 +2,9 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image, StyleSheet } from 'react-native';
-import { useAppState } from '../contexts';
+import { useAppState, useAuth } from '../contexts';
+import { UserProfileProvider } from '../contexts/UserProfileContext';
+import { DataProvider } from '../contexts/DataContext';
 import {
   HomeScreen,
   FitScreen,
@@ -113,7 +115,7 @@ const MainTabs = () => {
 };
 
 // 主导航 - 包含Tabs和其他页面
-export const MainNavigator = () => {
+const MainStack = () => {
   return (
     <Stack.Navigator
       screenOptions={{
@@ -136,6 +138,17 @@ export const MainNavigator = () => {
       <Stack.Screen name="Summary" component={SummaryScreen} />
       <Stack.Screen name="AdjustPlan" component={AdjustPlanScreen} />
     </Stack.Navigator>
+  );
+};
+
+export const MainNavigator = () => {
+  const { userId } = useAuth();
+  return (
+    <UserProfileProvider key={userId}>
+      <DataProvider>
+        <MainStack />
+      </DataProvider>
+    </UserProfileProvider>
   );
 };
 

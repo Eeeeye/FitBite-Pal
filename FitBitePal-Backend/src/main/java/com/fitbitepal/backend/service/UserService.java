@@ -24,6 +24,7 @@ import java.util.List;
 
 import static com.fitbitepal.backend.config.RedisConfig.CACHE_DIET_PLAN;
 import static com.fitbitepal.backend.config.RedisConfig.CACHE_TRAINING_PLAN;
+import static com.fitbitepal.backend.config.RedisConfig.CACHE_PLAN_VERSION;
 import static com.fitbitepal.backend.config.RedisConfig.CACHE_USER;
 
 @Service
@@ -225,6 +226,7 @@ public class UserService {
      * 清除所有用户相关缓存
      */
     @Caching(evict = {
+        @CacheEvict(value = CACHE_PLAN_VERSION, key = "#userId"),
         @CacheEvict(value = CACHE_USER, key = "#userId"),
         @CacheEvict(value = CACHE_TRAINING_PLAN, key = "#userId + ':' + T(java.time.LocalDate).now()"),
         @CacheEvict(value = CACHE_TRAINING_PLAN, key = "#userId + ':' + T(java.time.LocalDate).now().plusDays(1)"),

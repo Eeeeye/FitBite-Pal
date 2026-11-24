@@ -1,18 +1,17 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   fetchWeightRecords as fetchWeightRecordsApi,
-  fetchCalorieRecords as fetchCalorieRecordsApi,
+  fetchLiveCalorieRecords,
   fetchStatistics as fetchStatisticsApi,
   addWeightRecord as addWeightRecordApi,
   addCalorieRecord as addCalorieRecordApi,
   fetchCompletionRecords as fetchCompletionRecordsApi,
   saveCompletion as saveCompletionApi,
   saveCheckIn as saveCheckInApi,
-  getCheckInStatus as getCheckInStatusApi,
   getCheckInHistory as getCheckInHistoryApi,
-  fetchUserProfile as fetchUserProfileApi,
 } from '../api/user';
+import { createScreenReads, applyScreenWrite, localDateKey as getDateKey } from '../utils/screenReads';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext();
@@ -26,18 +25,26 @@ export const useData = () => {
 };
 
 export const DataProvider = ({ children }) => {
-  const { userId, isAuthenticated, isAdmin } = useAuth(); // ✨ 添加 isAdmin
+  const { userId } = useAuth();
+  const [reads] = useState(createScreenReads);
+  const [pendingWrites] = useState(() => new Map());
 
   // 训练和餐次完成状态
   const [completedExercises, setCompletedExercises] = useState({});
   const [completedMeals, setCompletedMeals] = useState({});
 
   // 日期状态
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // 打卡状态
-  const [checkedInDates, setCheckedInDates] = useState({});
+  const [checkedInDates, setCheckedInDates] = useState(null);
+  useEffect(() => {
+    if (checkedInDates !== null) {
+      AsyncStorage.setItem('checkInDates_' + userId, JSON.stringify(checkedInDates))
+        .catch(error => console.warn('Check-in cache:', error));
+    }
+  }, [userId, checkedInDates]);
 
   // 统计数据
   const [weightRecords, setWeightRecords] = useState([]);
@@ -54,153 +61,42 @@ export const DataProvider = ({ children }) => {
   });
   const [loadingStats, setLoadingStats] = useState(false);
 
-  // ✨ 辅助函数：格式化日期为 YYYY-MM-DD（与 App1.js 一致）
-  const getDateKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // 当用户登录后加载数据
-  useEffect(() => {
-    // ⚠️ 关键修复：管理员账号不加载用户数据
-    if (isAuthenticated && userId && !isAdmin) {
-      loadAllData();
-    } else if (!isAuthenticated || !userId || isAdmin) {
-      // ✅ 关键修复：用户退出登录、切换账户或管理员登录时，清空所有状态
-      setCompletedExercises({});
-      setCompletedMeals({});
-      setCheckedInDates({});
-      setWeightRecords([]);
-      setCalorieRecords([]);
-      setStatsData({
-        currentWeight: 0,
-        weightChange: 0,
-        bodyFat: 0,
-        bodyFatChange: 0,
-        avgCalorieBurn: 0,
-        nutritionScore: 0,
-        nutritionScoreChange: 0,
-        goalWeight: 0,
+  const loadCompletionRecords = useCallback(async (date, type) => {
+    const setRecords = type === 'exercise' ? setCompletedExercises : setCompletedMeals;
+    try {
+      await reads.run(type + ':' + date, () => fetchCompletionRecordsApi(userId, date, type), response => {
+        if (!response.success || !Array.isArray(response.data)) return;
+        const checked = Object.fromEntries(response.data.map(item => [item.itemIndex, item.completed]));
+        for (const { data } of pendingWrites.values()) {
+          if (data.date === date && data.itemType === type) checked[data.itemIndex] = data.completed;
+        }
+        setRecords(previous => ({ ...previous, [date]: checked }));
       });
-      setCurrentDate(new Date());
-      setSelectedDate(new Date());
-    }
-  }, [isAuthenticated, userId, isAdmin]); // ✨ 添加 isAdmin 依赖
-
-  const loadAllData = async () => {
-    await Promise.all([
-      loadCompletionRecords(),
-      loadCheckInStatus(),
-      loadWeightRecords(),
-      loadCalorieRecords(),
-      loadStatistics(),
-    ]);
-  };
-
-  const loadCompletionRecords = async () => {
-    if (!userId) return;
-
-    try {
-      // ✨ 修正：加载所有历史完成记录（不限制日期）
-      // 这样用户查看历史日期时也能看到勾选状态
-      
-      // 加载所有运动完成记录（不传日期参数）
-      const exerciseResponse = await fetchCompletionRecordsApi(userId, null, 'exercise');
-      const exercisesMap = {};
-      
-      if (exerciseResponse.success && Array.isArray(exerciseResponse.data)) {
-        exerciseResponse.data.forEach(record => {
-          // 使用 recordDate 字段（后端返回的日期字段）
-          // 注意：后端返回的可能是数组格式 [2025, 11, 20] 或字符串 "2025-11-20"
-          let dateKey = record.recordDate || record.date;
-          
-          // 如果是数组格式，转换为字符串
-          if (Array.isArray(dateKey)) {
-            dateKey = `${dateKey[0]}-${String(dateKey[1]).padStart(2, '0')}-${String(dateKey[2]).padStart(2, '0')}`;
-          }
-          
-          if (dateKey) {
-            if (!exercisesMap[dateKey]) exercisesMap[dateKey] = {};
-            exercisesMap[dateKey][record.itemIndex] = record.completed;
-          }
-        });
-      }
-      
-      // 加载所有饮食完成记录（不传日期参数）
-      const mealResponse = await fetchCompletionRecordsApi(userId, null, 'meal');
-      const mealsMap = {};
-      
-      if (mealResponse.success && Array.isArray(mealResponse.data)) {
-        mealResponse.data.forEach(record => {
-          let dateKey = record.recordDate || record.date;
-          
-          // 如果是数组格式，转换为字符串
-          if (Array.isArray(dateKey)) {
-            dateKey = `${dateKey[0]}-${String(dateKey[1]).padStart(2, '0')}-${String(dateKey[2]).padStart(2, '0')}`;
-          }
-          
-          if (dateKey) {
-            if (!mealsMap[dateKey]) mealsMap[dateKey] = {};
-            mealsMap[dateKey][record.itemIndex] = record.completed;
-          }
-        });
-      }
-
-      setCompletedExercises(exercisesMap);
-      setCompletedMeals(mealsMap);
     } catch (error) {
-      console.error('❌ Error loading completion records:', error);
+      console.error('Error loading completion records:', error);
     }
-  };
+  }, [reads, pendingWrites, userId]);
 
-  const loadCheckInStatus = async () => {
-    if (!userId) return;
-
+  const loadCheckInStatus = useCallback(async () => {
+    const storageKey = 'checkInDates_' + userId;
     try {
-      // ✅ 修改：从后端API获取所有历史打卡记录（不再依赖本地缓存）
-      const response = await getCheckInHistoryApi(userId);
-      
-      if (response.success && Array.isArray(response.data)) {
-        // 将日期数组转换为 { "2025-11-20": true, "2025-11-25": true } 格式
-        const checkInMap = {};
-        response.data.forEach(dateStr => {
-          checkInMap[dateStr] = true;
-        });
-        
-        setCheckedInDates(checkInMap);
-        
-        // 同时保存到 AsyncStorage 作为备份缓存
-        await AsyncStorage.setItem(`checkInDates_${userId}`, JSON.stringify(checkInMap));
-      } else {
-        // 如果后端请求失败，尝试从本地缓存加载
-        const storedCheckIns = await AsyncStorage.getItem(`checkInDates_${userId}`);
-        if (storedCheckIns) {
-          setCheckedInDates(JSON.parse(storedCheckIns));
+      await reads.run('check-ins', async () => {
+        try {
+          const response = await getCheckInHistoryApi(userId, 16);
+          if (!response.success || !Array.isArray(response.data)) throw new Error('Check-in history unavailable');
+          return { dates: Object.fromEntries(response.data.map(day => [day, true])) };
+        } catch (error) {
+          const saved = await AsyncStorage.getItem(storageKey);
+          if (!saved) throw error;
+          return { dates: JSON.parse(saved), cached: true };
         }
-      }
+      }, ({ dates, cached }) => setCheckedInDates(previous => cached ? { ...dates, ...previous } : dates));
     } catch (error) {
-      console.error('Error loading check-in history:', error);
-      // 失败时尝试从本地缓存加载
-      try {
-        const storedCheckIns = await AsyncStorage.getItem(`checkInDates_${userId}`);
-        if (storedCheckIns) {
-          setCheckedInDates(JSON.parse(storedCheckIns));
-        }
-      } catch (e) {
-        console.error('Error loading from AsyncStorage:', e);
-      }
+      console.warn('Error reading check-in history:', error);
     }
-  };
+  }, [reads, userId]);
 
-  /**
-   * 加载体重记录（重构版 - 从User表获取最新体重）
-   * 后端已删除WeightRecord表，体重数据统一存储在User表中
-   * fetchWeightRecordsApi 现在返回：[{ date: "2024-01-01", weight: 70.0 }, ...]
-   * 注意：所有记录显示的都是User表中的当前体重（无历史追踪）
-   */
-  const loadWeightRecords = async (days = 7) => {
+  const loadWeightRecords = useCallback(async (days = 7) => {
     if (!userId) return;
 
     try {
@@ -212,71 +108,22 @@ export const DataProvider = ({ children }) => {
     } catch (error) {
       console.error('Error loading weight records:', error);
     }
-  };
+  }, [userId]);
 
-  const loadCalorieRecords = async (days = 7) => {
-    if (!userId) return;
-
+  const loadCalorieRecords = useCallback(async (days = 7) => {
+    const end = getDateKey();
     try {
-      // ✨ 首先获取用户资料以获取真实的BMR
-      let userBmr = 1500; // 默认值
-      try {
-        const profileResponse = await fetchUserProfileApi(userId);
-        if (profileResponse.success && profileResponse.data && profileResponse.data.bmr) {
-          userBmr = profileResponse.data.bmr;
-        }
-      } catch (profileError) {
-        // 使用默认BMR
-      }
-
-      // ✨ 根据完成记录计算卡路里数据
-      const result = [];
-      const today = new Date();
-      
-      for (let i = days - 1; i >= 0; i--) {
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() - i);
-        const dateKey = getDateKey(targetDate);
-        
-        // 从后端获取运动完成记录
-        const exerciseResponse = await fetchCompletionRecordsApi(userId, dateKey, 'exercise');
-        
-        let exerciseCalories = 0;
-        if (exerciseResponse.success && exerciseResponse.data) {
-          const completedExercises = exerciseResponse.data.filter(record => record.completed);
-          exerciseCalories = completedExercises.reduce((sum, record) => sum + (record.calories || 0), 0);
-        }
-        
-        // 从后端获取饮食完成记录
-        const mealResponse = await fetchCompletionRecordsApi(userId, dateKey, 'meal');
-        
-        let intake = 0;
-        if (mealResponse.success && mealResponse.data) {
-          const completedMeals = mealResponse.data.filter(record => record.completed);
-          intake = completedMeals.reduce((sum, record) => sum + (record.calories || 0), 0);
-        }
-        
-        result.push({
-          date: dateKey,
-          intake,
-          baseMetabolism: userBmr,  // ✅ 使用用户真实的BMR
-          exerciseCalories,
-          expenditure: userBmr + exerciseCalories
+      await reads.run('calories:' + end + ':' + days,
+        () => fetchLiveCalorieRecords(userId, days, end),
+        response => {
+          if (response.success && Array.isArray(response.data)) setCalorieRecords(response.data);
         });
-      }
-      
-      setCalorieRecords(result);
-
     } catch (error) {
       console.error('Error loading calorie records:', error);
     }
-  };
+  }, [reads, userId]);
 
-  /**
-   * 加载统计数据（重构版 - 从User表获取）
-   * 后端统计接口已重构，体重等身体数据统一从User表获取
-   */
-  const loadStatistics = async (days = 7) => {
+  const loadStatistics = useCallback(async (days = 7) => {
     if (!userId) return;
 
     try {
@@ -291,63 +138,52 @@ export const DataProvider = ({ children }) => {
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [userId]);
 
   const saveCompletion = async (data) => {
-    if (!userId) return { success: false };
-
-    try {
-      // ✨ 修正：直接传递完整的 data 对象到 API（与 App1.js 一致）
+    const day = data.itemType + ':' + data.date;
+    const id = day + ':' + data.itemIndex;
+    const setRecords = data.itemType === 'exercise' ? setCompletedExercises : setCompletedMeals;
+    const previous = pendingWrites.get(id);
+    const values = data.itemType === 'exercise' ? completedExercises : completedMeals;
+    const confirmed = previous?.confirmed || { value: Boolean(values[data.date]?.[data.itemIndex]) };
+    const post = async () => {
       const response = await saveCompletionApi(data);
-
-      if (response.success) {
-        // 更新本地状态（使用 itemType 字段）
-        if (data.itemType === 'exercise') {
-          setCompletedExercises(prev => ({
-            ...prev,
-            [data.date]: {
-              ...prev[data.date],
-              [data.itemIndex]: data.completed,
-            },
-          }));
-        } else if (data.itemType === 'meal') {
-          setCompletedMeals(prev => ({
-            ...prev,
-            [data.date]: {
-              ...prev[data.date],
-              [data.itemIndex]: data.completed,
-            },
-          }));
-        }
-      }
-
+      if (response.success) confirmed.value = data.completed;
+      return response;
+    };
+    const promise = previous ? previous.promise.then(post, post) : post();
+    pendingWrites.set(id, { data, promise, confirmed });
+    reads.invalidate(day);
+    setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [data.itemIndex]: data.completed } }));
+    try {
+      const response = await promise;
+      if (!response.success) throw new Error(response.message || 'Could not save completion');
       return response;
     } catch (error) {
-      console.error('Error saving completion:', error);
+      if (pendingWrites.get(id)?.promise === promise) {
+        pendingWrites.delete(id);
+        reads.invalidate(day);
+        setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [data.itemIndex]: confirmed.value } }));
+        await loadCompletionRecords(data.date, data.itemType);
+      }
       return { success: false, message: error.message };
+    } finally {
+      if (pendingWrites.get(id)?.promise === promise) {
+        pendingWrites.delete(id);
+        reads.invalidate(day);
+      }
     }
   };
 
-  const saveCheckIn = async (date) => {
+  const saveCheckIn = async (date, measurements = {}) => {
     if (!userId) return { success: false, message: '用户未登录' };
-
     try {
-      // 发送正确格式的数据
-      const response = await saveCheckInApi(userId, { date });
-
-      // 无论是否重复，只要后端表示这一天已打卡，就更新本地状态
-      if (response.success || (response.data && response.message && response.message.includes('Duplicate'))) {
-        const newCheckedInDates = {
-          ...checkedInDates,
-          [date]: true,
-        };
-        
-        setCheckedInDates(newCheckedInDates);
-        
-        // ✅ 持久化保存到 AsyncStorage
-        await AsyncStorage.setItem(`checkInDates_${userId}`, JSON.stringify(newCheckedInDates));
+      const response = await saveCheckInApi(userId, { ...measurements, date });
+      if (response.data?.checkedIn || response.data?.alreadyCheckedIn) {
+        applyScreenWrite(reads, 'check-ins',
+          () => setCheckedInDates(previous => ({ ...previous, [date]: true })), loadCheckInStatus);
       }
-
       return response;
     } catch (error) {
       console.error('Error saving check-in:', error);
@@ -434,6 +270,7 @@ export const DataProvider = ({ children }) => {
     // 完成状态
     completedExercises,
     setCompletedExercises,
+    loadCompletionRecords,
     completedMeals,
     setCompletedMeals,
     saveCompletion,
@@ -446,8 +283,8 @@ export const DataProvider = ({ children }) => {
     setSelectedDate,
 
     // 打卡
-    checkedInDates,
-    setCheckedInDates,  // ✨ 新增：导出打卡状态设置函数
+    checkedInDates: checkedInDates ?? {},
+    loadCheckInStatus,
     saveCheckIn,
 
     // 统计数据
@@ -461,8 +298,6 @@ export const DataProvider = ({ children }) => {
     loadCalorieRecords,
     loadStatistics,
     
-    // 刷新所有数据
-    refreshData: loadAllData,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

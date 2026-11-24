@@ -1,8 +1,6 @@
 import React from 'react';
 import { AuthProvider } from './AuthContext';
-import { UserProfileProvider } from './UserProfileContext';
 import { AppStateProvider } from './AppStateContext';
-import { DataProvider } from './DataContext';
 
 /**
  * 组合所有Context Provider
@@ -12,11 +10,7 @@ export const AppProviders = ({ children }) => {
   return (
     <AppStateProvider>
       <AuthProvider>
-        <UserProfileProvider>
-          <DataProvider>
-            {children}
-          </DataProvider>
-        </UserProfileProvider>
+        {children}
       </AuthProvider>
     </AppStateProvider>
   );

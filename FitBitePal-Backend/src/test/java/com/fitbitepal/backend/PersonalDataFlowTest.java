@@ -3,6 +3,7 @@ package com.fitbitepal.backend;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fitbitepal.backend.config.ExerciseInitializer;
 import com.fitbitepal.backend.config.FoodItemInitializer;
+import com.fitbitepal.backend.model.CompletionRecord;
 import com.fitbitepal.backend.model.PoseSession;
 import com.fitbitepal.backend.dto.PoseSaveSessionRequest;
 import java.util.concurrent.Callable;
@@ -10,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import com.fitbitepal.backend.model.User;
+import com.fitbitepal.backend.repository.CompletionRecordRepository;
 import com.fitbitepal.backend.repository.PoseSessionRepository;
 import com.fitbitepal.backend.repository.UserRepository;
 import com.fitbitepal.backend.service.ArkAIService;
@@ -24,6 +26,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -57,9 +60,49 @@ class PersonalDataFlowTest {
     @Autowired PoseSessionService sessions;
     @Autowired JwtUtil jwt;
 
+    @Autowired CompletionRecordRepository completionRows;
     private User owner;
     private String token;
     private String other;
+
+    @Test
+    void liveCaloriesAggregateOnlyThisUsersCheckedItemsAndFillEmptyDays() throws Exception {
+        owner.setBmr(1650);
+        users.saveAndFlush(owner);
+        var end = LocalDate.of(2026, 2, 10);
+        addCompletion(owner, end, "meal", 0, true, 350);
+        addCompletion(owner, end, "meal", 1, true, 125);
+        addCompletion(owner, end, "meal", 2, false, 100);
+        addCompletion(owner, end, "exercise", 0, true, 75);
+        addCompletion(user(), end, "exercise", 0, true, 500);
+        addCompletion(owner, end.minusDays(2), "exercise", 0, true, 10);
+        var request = get("/data/calories/live").param("userId", owner.getId().toString())
+                .param("days", "2").param("endDate", end.toString());
+        mvc.perform(request.header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].date").value("2026-02-09"))
+                .andExpect(jsonPath("$.data[0].intake").value(0))
+                .andExpect(jsonPath("$.data[0].expenditure").value(1650))
+                .andExpect(jsonPath("$.data[1].intake").value(475))
+                .andExpect(jsonPath("$.data[1].exerciseCalories").value(75))
+                .andExpect(jsonPath("$.data[1].expenditure").value(1725));
+        mvc.perform(get("/data/calories/live").param("userId", owner.getId().toString())
+                .header("Authorization", other)).andExpect(status().isForbidden());
+        mvc.perform(get("/data/calories/live").param("userId", owner.getId().toString())
+                .param("days", "367").header("Authorization", token)).andExpect(status().isBadRequest());
+    }
+
+    private void addCompletion(User user, LocalDate date, String type, int index,
+                               boolean checked, int calories) {
+        var row = new CompletionRecord();
+        row.setUserId(user.getId());
+        row.setRecordDate(date);
+        row.setItemType(type);
+        row.setItemIndex(index);
+        row.setCompleted(checked);
+        row.setCalories(calories);
+        completionRows.saveAndFlush(row);
+    }
 
     @BeforeEach
     void registerUsers() {

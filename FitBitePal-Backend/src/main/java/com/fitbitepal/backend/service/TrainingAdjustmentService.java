@@ -56,7 +56,7 @@ public class TrainingAdjustmentService {
         training.deleteByUserIdAndPlanDate(userId, today);
         completions.deleteByUserIdAndRecordDateAndItemType(userId, today, "exercise");
         training.flush();
-        generator.generatePlanForUser(user, today);
+        generator.ensurePlan(user, today);
         long count = training.countByUserIdAndPlanDate(userId, today);
         if (count == 0) throw new IllegalStateException("Training plan replacement produced no items");
         profiles.evictAllUserCaches(userId);

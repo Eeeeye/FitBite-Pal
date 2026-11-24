@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,7 +25,7 @@ export const ProgressScreen = ({ navigation }) => {
     loadWeightRecords,
     loadCalorieRecords,
     loadStatistics,
-    completedMeals,
+    completedMeals, loadCompletionRecords, getDateKey,
   } = useData();
   const { userProfile } = useUserProfile();
   const { currentLanguage } = useAppState();
@@ -39,13 +40,16 @@ export const ProgressScreen = ({ navigation }) => {
   const [tempWeightTarget, setTempWeightTarget] = useState('70');
   const [tempBodyFatTarget, setTempBodyFatTarget] = useState('18');
 
+  const todayKey = getDateKey();
+  useFocusEffect(useCallback(() => {
+    loadWeightRecords(7);
+    loadCalorieRecords(7);
+    loadStatistics(7);
+    loadCompletionRecords(todayKey, 'meal');
+  }, [loadWeightRecords, loadCalorieRecords, loadStatistics, loadCompletionRecords, todayKey]));
+
   useEffect(() => {
-    if (userId) {
-      loadWeightRecords(7);
-      loadCalorieRecords(7);
-      loadStatistics(7);
-      loadGoals(); // 加载保存的目标
-    }
+    if (userId) loadGoals();
   }, [userId]);
 
   useEffect(() => {

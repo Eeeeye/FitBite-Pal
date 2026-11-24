@@ -21,7 +21,7 @@ export const FoodRecognitionScreen = ({ navigation }) => {
   const [selectedMealType, setSelectedMealType] = useState('Lunch'); // 默认午餐
   const { analyzing, result, analyzeFood, resetAnalysis } = useFoodAnalysis();
   const { currentLanguage } = useAppState();
-  const { dietPlan, setDietPlan } = useUserProfile();
+  const { addDietItem } = useUserProfile();
   const { userId } = useAuth();
 
   // 餐次选项
@@ -266,7 +266,7 @@ export const FoodRecognitionScreen = ({ navigation }) => {
                   if (response.success) {
                     // ✅ 同时更新前端状态（用于即时显示）
                     const newMeal = {
-                      id: response.data?.id || Date.now(),
+                      id: response.data?.id,
                       name: dietData.foodName, // ✅ 添加 name 字段
                       meal: dietData.foodName,
                       mealType: selectedMealType, // ✅ 使用用户选择的餐次
@@ -283,7 +283,7 @@ export const FoodRecognitionScreen = ({ navigation }) => {
                       isCustom: false, // ✅ 不是自定义，是 AI 识别的
                     };
                     
-                    setDietPlan(prev => [...prev, newMeal]);
+                    addDietItem(newMeal);
 
                     Alert.alert(
                       currentLanguage === 'zh' ? '成功' : 'Success',

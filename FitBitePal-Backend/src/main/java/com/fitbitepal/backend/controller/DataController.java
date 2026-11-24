@@ -2,6 +2,7 @@ package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.ApiResponse;
 import com.fitbitepal.backend.dto.CalorieRecordRequest;
+import com.fitbitepal.backend.exception.ResourceNotFoundException;
 import com.fitbitepal.backend.service.ActivityRecordService;
 import jakarta.validation.Valid;
 import com.fitbitepal.backend.model.CalorieRecord;
@@ -17,6 +18,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -135,6 +137,33 @@ public class DataController {
         return ResponseEntity.ok(ApiResponse.success(records));
     }
     
+    public record LiveCalorieDay(LocalDate date, long intake, long expenditure, int baseMetabolism,
+                                 long exerciseCalories) {}
+
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
+    @GetMapping("/calories/live")
+    public ApiResponse<List<LiveCalorieDay>> liveCalories(@RequestParam Long userId,
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @AuthenticationPrincipal User actor) {
+        LocalDate end = endDate == null ? LocalDate.now() : endDate;
+        if (days > 366 || end.getYear() > 9999) throw new IllegalArgumentException("Invalid reporting window");
+        LocalDate start = windowStart(end, days);
+        User user = userId.equals(actor.getId()) ? actor : userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        int bmr = user.getBmr() == null || user.getBmr() == 0 ? 1500 : user.getBmr();
+        var totals = new HashMap<LocalDate, CompletionRecordRepository.DailyCalories>();
+        completionRecordRepository.totalsByDate(userId, start, end).forEach(row -> totals.put(row.getDate(), row));
+        var result = new ArrayList<LiveCalorieDay>(days);
+        for (int i = 0; i < days; i++) {
+            LocalDate date = start.plusDays(i);
+            var row = totals.get(date);
+            long exercise = row == null ? 0 : row.getExercise();
+            result.add(new LiveCalorieDay(date, row == null ? 0 : row.getIntake(), bmr + exercise, bmr, exercise));
+        }
+        return ApiResponse.success(result);
+    }
+
     /**
      * 添加卡路里记录
      */

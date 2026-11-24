@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -10,38 +12,38 @@ import {
 } from 'react-native';
 import { useUserProfile, useData, useAppState } from '../contexts';
 import { Card } from '../components/common';
+import { readTrainingDay } from '../utils/screenReads';
 import { t } from '../../services/i18n';
 import { translateExerciseName } from '../utils/exerciseTranslations';
 
 export const FitScreen = ({ navigation }) => {
-  const { trainingPlan, loadTrainingPlan, loading } = useUserProfile();
-  const { completedExercises, saveCompletion, selectedDate } = useData();
+  const { userId } = useAuth();
+  const { trainingByDate, loadTrainingPlan } = useUserProfile();
+  const { completedExercises, loadCompletionRecords, saveCompletion, selectedDate, getDateKey } = useData();
   const { fontSizeConfig, currentLanguage } = useAppState();
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadTrainingPlan();
-  }, []);
+  const todayKey = getDateKey(selectedDate);
+  const trainingPlan = trainingByDate[todayKey] || [];
+  const reload = useCallback(() => readTrainingDay(todayKey, loadTrainingPlan, loadCompletionRecords),
+    [todayKey, loadTrainingPlan, loadCompletionRecords]);
 
-  const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
-  const todayKey = formatDate(selectedDate);
   const todayCompletions = completedExercises[todayKey] || {};
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadTrainingPlan();
+    await reload();
     setRefreshing(false);
   };
 
-  const handleToggleCompletion = async (index) => {
-    const isCompleted = todayCompletions[index];
-    await saveCompletion('training', todayKey, index, !isCompleted);
+  const handleToggleCompletion = async (exercise, index) => {
+    const itemIndex = exercise.orderIndex > 0 ? exercise.orderIndex - 1 : index;
+    await saveCompletion({
+      userId, date: todayKey, itemType: 'exercise', itemIndex,
+      completed: !todayCompletions[itemIndex], itemName: exercise.name, calories: exercise.calories,
+    });
   };
 
   const handleExercisePress = (exercise, index) => {
@@ -116,7 +118,7 @@ export const FitScreen = ({ navigation }) => {
             </Card>
           ) : (
             trainingPlan.map((exercise, index) => {
-              const isCompleted = todayCompletions[index];
+              const isCompleted = todayCompletions[exercise.orderIndex > 0 ? exercise.orderIndex - 1 : index];
               
               return (
                 <Card
@@ -156,7 +158,7 @@ export const FitScreen = ({ navigation }) => {
                         styles.checkButton,
                         isCompleted && styles.checkButtonCompleted,
                       ]}
-                      onPress={() => handleToggleCompletion(index)}
+                      onPress={() => handleToggleCompletion(exercise, index)}
                     >
                       {isCompleted && (
                         <Text style={styles.checkIcon}>✓</Text>

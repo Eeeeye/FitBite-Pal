@@ -26,6 +26,7 @@ public class RedisConfig {
 
     public static final String CACHE_USER = "userCache";
     public static final String CACHE_TRAINING_PLAN = "trainingPlanCache";
+    public static final String CACHE_PLAN_VERSION = "publishedPlanVersion";
     public static final String CACHE_DIET_PLAN = "dietPlanCache";
 
     @Bean
@@ -35,6 +36,7 @@ public class RedisConfig {
         var types = mapper.getTypeFactory();
         return RedisCacheManager.builder(connections)
                 .withInitialCacheConfigurations(Map.of(
+                        CACHE_PLAN_VERSION, cache(mapper, types.constructType(String.class), Duration.ofHours(12)),
                         CACHE_USER, cache(mapper, types.constructType(User.class), Duration.ofHours(24)),
                         CACHE_TRAINING_PLAN, cache(mapper, types.constructCollectionType(List.class, TrainingPlan.class), Duration.ofHours(12)),
                         CACHE_DIET_PLAN, cache(mapper, types.constructCollectionType(List.class, DietPlan.class), Duration.ofHours(12))))

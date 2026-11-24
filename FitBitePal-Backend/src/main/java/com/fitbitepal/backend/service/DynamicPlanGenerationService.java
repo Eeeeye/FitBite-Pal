@@ -6,7 +6,7 @@ import com.fitbitepal.backend.repository.TrainingPlanRepository;
 import com.fitbitepal.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.transaction.annotation.Propagation;
 import com.fitbitepal.backend.config.RedisConfig;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,11 +19,13 @@ public class DynamicPlanGenerationService {
     private final TrainingPlanRepository plans;
     private final UserRepository users;
     private final TrainingPlanFactory factory;
+    private final PublishedPlanReader published;
 
-    @Cacheable(value = RedisConfig.CACHE_TRAINING_PLAN, key = "#userId + ':' + #date", unless = "#result.isEmpty()")
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<TrainingPlan> generatePlanForDate(Long userId, LocalDate date) {
-        return users.findForUpdate(userId).map(user -> ensurePlan(user, date)).orElseGet(List::of);
+        return published.read(RedisConfig.CACHE_TRAINING_PLAN, userId, date,
+                () -> plans.findByUserIdAndPlanDateOrderByOrderIndexAsc(userId, date),
+                user -> ensurePlan(user, date));
     }
 
     // The caller already holds the user's database row lock for the transaction.
@@ -37,16 +39,16 @@ public class DynamicPlanGenerationService {
 
     @Transactional
     public void generatePlanForUser(User user, LocalDate date) {
-        generatePlanForDate(user.getId(), date);
+        users.findForUpdate(user.getId()).ifPresent(locked -> ensurePlan(locked, date));
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void generatePlanForNextDay(Long userId, LocalDate sourceDate) {
         generatePlanForDate(userId, sourceDate.plusDays(1));
     }
 
     @Deprecated
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void generatePlanForDay3(Long userId, LocalDate sourceDate) {
         generatePlanForNextDay(userId, sourceDate);
     }

@@ -73,6 +73,23 @@ public interface CompletionRecordRepository extends JpaRepository<CompletionReco
             """)
     List<CalorieTotal> totalsForDay(Long userId, LocalDate date);
 
+    @Query("""
+            select r.recordDate as date,
+                   coalesce(sum(case when r.itemType = 'meal' then r.calories else 0 end), 0) as intake,
+                   coalesce(sum(case when r.itemType = 'exercise' then r.calories else 0 end), 0) as exercise
+            from CompletionRecord r
+            where r.userId = :userId and r.recordDate between :start and :end
+              and r.completed = true and r.itemType in ('meal', 'exercise')
+            group by r.recordDate
+            """)
+    List<DailyCalories> totalsByDate(Long userId, LocalDate start, LocalDate end);
+
+    interface DailyCalories {
+        LocalDate getDate();
+        long getIntake();
+        long getExercise();
+    }
+
     interface CalorieTotal {
         String getItemType();
         long getTotal();

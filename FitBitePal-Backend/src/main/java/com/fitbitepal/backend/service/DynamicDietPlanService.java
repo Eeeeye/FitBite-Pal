@@ -5,10 +5,9 @@ import com.fitbitepal.backend.model.MealSet;
 import com.fitbitepal.backend.model.User;
 import com.fitbitepal.backend.repository.DietPlanRepository;
 import com.fitbitepal.backend.repository.MealSetRepository;
-import com.fitbitepal.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.transaction.annotation.Propagation;
 import com.fitbitepal.backend.config.RedisConfig;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,15 +20,16 @@ import java.util.Random;
 @RequiredArgsConstructor
 public class DynamicDietPlanService {
     private final DietPlanRepository dietPlans;
-    private final UserRepository users;
+    private final PublishedPlanReader published;
     private final MealSetRepository meals;
     private static final List<String> MEAL_TYPES = List.of("Breakfast", "Lunch", "Dinner");
     private static final List<String> MEAL_TIMES = List.of("08:00", "12:30", "18:30");
 
-    @Cacheable(value = RedisConfig.CACHE_DIET_PLAN, key = "#userId + ':' + #date", unless = "#result.isEmpty()")
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<DietPlan> generateDietPlanForDate(Long userId, LocalDate date) {
-        return users.findForUpdate(userId).map(user -> ensurePlan(user, date)).orElseGet(List::of);
+        return published.read(RedisConfig.CACHE_DIET_PLAN, userId, date,
+                () -> dietPlans.findByUserIdAndPlanDateOrderByMealTimeAsc(userId, date),
+                user -> ensurePlan(user, date));
     }
 
     // The caller already holds the user's database row lock for the transaction.

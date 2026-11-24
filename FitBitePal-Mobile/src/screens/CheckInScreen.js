@@ -10,16 +10,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useData } from '../contexts/DataContext';
-import { useAuth } from '../contexts/AuthContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { useAppState } from '../contexts/AppStateContext';
-import { saveCheckIn as saveCheckInApi } from '../api/user';
 
 import { checkInMeasurements, switchHeightUnit, switchWeightUnit } from '../utils/measurements';
 
 export const CheckInScreen = ({ navigation }) => {
-  const { userId } = useAuth();
-  const { setCheckedInDates, getDateKey, loadStatistics, loadWeightRecords } = useData();
+  const { saveCheckIn, getDateKey, loadStatistics, loadWeightRecords } = useData();
   const { userProfile, loadUserProfile } = useUserProfile();
   const { currentLanguage } = useAppState();
   const [loading, setLoading] = useState(false);
@@ -53,20 +50,10 @@ export const CheckInScreen = ({ navigation }) => {
       const todayKey = getDateKey(new Date());
 
       // ✅ 打卡时同时保存体重和身高到打卡记录（用于历史统计折线图）
-      const checkInResponse = await saveCheckInApi(userId, {
-        date: todayKey,
-        ...measurements,
-      });
-
-      if (checkInResponse.success && checkInResponse.data && checkInResponse.data.checkedIn) {
-        // 打卡成功，更新本地状态
-        setCheckedInDates(prev => ({
-          ...prev,
-          [todayKey]: true
-        }));
-        
+      const checkInResponse = await saveCheckIn(todayKey, measurements);
+      if (checkInResponse.success && checkInResponse.data?.checkedIn) {
         await Promise.allSettled([
-          loadUserProfile(), loadStatistics?.(7), loadWeightRecords?.(7),
+          loadUserProfile(true), loadStatistics?.(7), loadWeightRecords?.(7),
         ]);
 
         Alert.alert(

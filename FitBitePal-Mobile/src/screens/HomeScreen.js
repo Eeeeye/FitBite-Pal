@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,20 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth, useUserProfile, useData, useAppState } from '../contexts';
+import { readTrainingDay } from '../utils/screenReads';
 import { t } from '../../services/i18n';
 import { translateExerciseName } from '../utils/exerciseTranslations';
 
 export const HomeScreen = ({ navigation }) => {
   const { userId } = useAuth();
-  const { userProfile, trainingPlan, loadTrainingPlan, loadUserProfile } = useUserProfile();
+  const { userProfile, trainingByDate, loadTrainingPlan, loadUserProfile } = useUserProfile();
   const { 
     selectedDate, 
     setSelectedDate,
     checkedInDates,
     completedExercises,
-    setCompletedExercises,
     saveCompletion,
-    loadCalorieRecords,
+    loadCompletionRecords, loadCheckInStatus,
     getDateKey,
   } = useData();
   const { currentLanguage } = useAppState();
@@ -33,40 +33,19 @@ export const HomeScreen = ({ navigation }) => {
   const displayIntensity = userProfile.trainingIntensity || 'Intermediate';
   const displayArea = userProfile.trainingArea || 'Full body';
   
-  // 计算今日训练计划的卡路里总和
-  const todayTotalCalories = useMemo(() => {
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    const todayPlans = trainingPlan.filter(item => {
-      if (!item.planDate) return false;
-      return item.planDate === todayStr;
-    });
-    
-    const total = todayPlans.reduce((sum, item) => {
-      return sum + (item.calories || 0);
-    }, 0);
-    
-    return total > 0 ? total : 380;
-  }, [trainingPlan]);
+  const selectedKey = getDateKey(selectedDate);
+  const trainingPlan = trainingByDate[selectedKey] || [];
+  const todayTotalCalories = (trainingByDate[getDateKey()] || [])
+    .reduce((sum, item) => sum + item.calories, 0) || 380;
 
-  // 首次进入时加载数据
-  useEffect(() => {
-    if (userId && trainingPlan.length === 0) {
-      loadUserProfile();
-      loadTrainingPlan(true);
-    }
-  }, [userId]);
-  
-  // ✅ 关键修改：每次页面获得焦点时，重新加载用户数据和训练计划
-  useFocusEffect(
-    useCallback(() => {
-      if (userId) {
-        loadUserProfile();      // 刷新用户数据（包括训练参数）
-        loadTrainingPlan(true); // 刷新训练计划（运动卡片）
-      }
-    }, [userId])
-  );
+  useFocusEffect(useCallback(() => {
+    loadUserProfile();
+    loadCheckInStatus();
+  }, [loadUserProfile, loadCheckInStatus]));
+
+  useFocusEffect(useCallback(() => {
+    readTrainingDay(selectedKey, loadTrainingPlan, loadCompletionRecords);
+  }, [selectedKey, loadTrainingPlan, loadCompletionRecords]));
 
   const isSameDay = (date1, date2) => {
     return date1.getFullYear() === date2.getFullYear() &&
@@ -138,16 +117,6 @@ export const HomeScreen = ({ navigation }) => {
     } catch (error) {
       if (__DEV__) {
         console.error('Error saving completion:', error);
-      }
-    }
-  };
-
-  const loadCaloriesFromBackend = async (days = 7) => {
-    try {
-      await loadCalorieRecords(days);
-    } catch (error) {
-      if (__DEV__) {
-        console.error('Error loading calories:', error);
       }
     }
   };
@@ -302,12 +271,6 @@ export const HomeScreen = ({ navigation }) => {
           {/* Training List */}
           <View style={styles.trainingList}>
             {trainingPlan.length > 0 ? trainingPlan
-              // ✨ 关键：根据选择的日期过滤训练计划
-              .filter(item => {
-                if (!item.planDate) return true; // 兼容旧数据
-                const selectedDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-                return item.planDate === selectedDateStr;
-              })
               .map((item, index) => {
               const dateKey = getDateKey(selectedDate);
               // ✅ 使用 orderIndex-1（因为后端orderIndex从1开始，完成记录从0开始）或 index
@@ -320,7 +283,7 @@ export const HomeScreen = ({ navigation }) => {
               
               return (
                 <TouchableOpacity 
-                  key={index} 
+                  key={item.id ?? index}
                   style={styles.trainingItem}
                   onPress={() => {
                     navigation.navigate('ExerciseDetail', { exercise: item });
@@ -358,14 +321,6 @@ export const HomeScreen = ({ navigation }) => {
                         const itemIdx = item.orderIndex > 0 ? item.orderIndex - 1 : index;
                         const newCompletedState = !(completedExercises[dateKey]?.[itemIdx]);
                         
-                        setCompletedExercises(prev => ({
-                          ...prev,
-                          [dateKey]: {
-                            ...(prev[dateKey] || {}),
-                            [itemIdx]: newCompletedState
-                          }
-                        }));
-                        
                         const calories = (item.calories && item.calories > 0) ? item.calories : 150;
                         
                         await saveCompletionStatus(
@@ -376,10 +331,6 @@ export const HomeScreen = ({ navigation }) => {
                           item.name || item.exerciseName,
                           calories
                         );
-                        
-                        setTimeout(async () => {
-                          await loadCaloriesFromBackend(7);
-                        }, 100);
                       }}
                     >
                       <Image

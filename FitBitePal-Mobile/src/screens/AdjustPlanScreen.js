@@ -130,10 +130,8 @@ export const AdjustPlanScreen = ({ navigation }) => {
         throw new Error(response.message || 'Failed');
       }
 
-      // 2. 等待后端完成计划生成
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await Promise.all([loadUserProfile(true), loadTrainingPlan(getTodayKey(), true)]);
 
-      // 3. 显示成功提示并返回（HomeScreen 的 useFocusEffect 会自动刷新数据）
       Alert.alert(
         currentLanguage === 'zh' ? '调整成功' : 'Success',
         currentLanguage === 'zh' ? '训练计划已更新' : 'Training plan updated',

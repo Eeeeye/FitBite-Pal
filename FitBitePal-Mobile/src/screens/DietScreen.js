@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,7 +15,7 @@ import {
 } from 'react-native';
 import { useAuth, useUserProfile, useData, useAppState } from '../contexts';
 import { t } from '../../services/i18n';
-import { deleteDietRecord, saveDietRecord } from '../api/user';
+import { saveDietRecord } from '../api/user';
 import { 
   translateFoodName as translateFoodNameUtil, 
   translateIngredient as translateIngredientUtil 
@@ -22,17 +23,17 @@ import {
 
 export const DietScreen = ({ navigation }) => {
   const { userId } = useAuth();
-  const { dietPlan, setDietPlan, loadDietPlan } = useUserProfile();
+  const { dietPlan, addDietItem, removeDietItem, loadDietPlan } = useUserProfile();
   const { 
     completedMeals,
-    setCompletedMeals,
     saveCompletion,
-    loadCalorieRecords,
+    loadCompletionRecords, getDateKey,
   } = useData();
   const { currentLanguage } = useAppState();
   
   // ✅ 选择的日期（默认为今天）
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedDate = new Date();
+  const dateKey = getDateKey(selectedDate);
   
   // ✅ 编辑模式状态
   const [isEditMode, setIsEditMode] = useState(false);
@@ -46,23 +47,10 @@ export const DietScreen = ({ navigation }) => {
     calories: '',
   });
 
-  // ✨ 进入饮食页面时加载饮食计划（与App1.js一致）
-  // 关键：只在dietPlan为空时加载一次，不随日期变化刷新
-  // 后端会返回当天+未来3天的计划（共4天）
-  useEffect(() => {
-    if (userId && dietPlan.length === 0) {
-
-      loadDietPlan();
-    }
-  }, [userId]);
-  // 注意：不监听selectedDate，避免重复加载
-
-  const getDateKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  useFocusEffect(useCallback(() => {
+    loadDietPlan();
+    loadCompletionRecords(dateKey, 'meal');
+  }, [dateKey, loadDietPlan, loadCompletionRecords]));
 
   // ✅ 使用统一翻译工具（支持中英文双向翻译）
   const translateFoodName = (name) => {
@@ -97,15 +85,7 @@ export const DietScreen = ({ navigation }) => {
     }
   };
 
-  const loadCaloriesFromBackend = async (days = 7) => {
-    try {
-      await loadCalorieRecords(days);
-    } catch (error) {
-      if (__DEV__) {
-        console.error('Error loading calories:', error);
-      }
-    }
-  };
+
 
   // ✅ 手动添加食物
   const handleAddFood = async () => {
@@ -135,9 +115,8 @@ export const DietScreen = ({ navigation }) => {
       
       if (response.success) {
         // ✅ 添加到本地饮食计划列表（确保所有字段完整）
-        const newMealId = response.data?.id || `local-${Date.now()}`;
         const newMeal = {
-          id: newMealId,
+          id: response.data?.id,
           name: newFood.name.trim(), // ✅ 添加 name 字段
           meal: newFood.name.trim(), // ✅ 添加 meal 字段
           foods: newFood.name.trim(),
@@ -152,7 +131,7 @@ export const DietScreen = ({ navigation }) => {
         };
         
         console.log('添加新食物:', newMeal); // 调试日志
-        setDietPlan(prev => [...prev, newMeal]);
+        addDietItem(newMeal);
         
         // 重置表单并关闭弹窗
         setNewFood({
@@ -301,12 +280,6 @@ export const DietScreen = ({ navigation }) => {
                   <TouchableOpacity 
                     style={styles.deleteButton}
                     onPress={() => {
-                      // ✅ 保存当前要删除的 item 的引用（闭包）
-                      const itemToDelete = mealItem;
-                      const itemId = itemToDelete.id;
-                      
-                      console.log('准备删除:', { id: itemId, item: itemToDelete }); // 调试
-                      
                       Alert.alert(
                         currentLanguage === 'zh' ? '确认删除' : 'Confirm Delete',
                         currentLanguage === 'zh' ? '确定要删除这个食物吗？' : 'Are you sure you want to delete this meal?',
@@ -317,59 +290,16 @@ export const DietScreen = ({ navigation }) => {
                             style: 'destructive',
                             onPress: async () => {
                               try {
-                                // ✅ 只要有 ID 就尝试删除后端记录
-                                if (itemId) {
-                                  let recordId = itemId.toString();
-                                  if (recordId.startsWith('record-')) {
-                                    recordId = recordId.replace('record-', '');
-                                  }
-                                  if (/^\d+$/.test(recordId)) {
-                                    try {
-                                      await deleteDietRecord(recordId);
-                                      console.log('后端删除成功:', recordId);
-                                    } catch (apiError) {
-                                      console.log('后端删除失败:', apiError.message);
-                                    }
-                                  }
-                                }
-                                
-                                // ✅ 修复：使用 ID 字符串比较删除
-                                setDietPlan(prev => {
-                                  const newList = prev.filter(item => {
-                                    // 优先使用 ID 比较（转为字符串避免类型问题）
-                                    if (itemId != null && item.id != null) {
-                                      const match = String(item.id) === String(itemId);
-                                      if (match) console.log('找到匹配项，删除:', item.id);
-                                      return !match;
-                                    }
-                                    // 没有 ID 时，使用所有可能的字段匹配
-                                    const isSame = (
-                                      (item.foods === itemToDelete.foods || 
-                                       item.name === itemToDelete.name ||
-                                       item.meal === itemToDelete.meal ||
-                                       item.foodName === itemToDelete.foodName) &&
-                                      item.mealType === itemToDelete.mealType &&
-                                      item.calories === itemToDelete.calories
-                                    );
-                                    return !isSame;
-                                  });
-                                  console.log('删除前数量:', prev.length, '删除后数量:', newList.length);
-                                  return newList;
-                                });
-                                
+                                await removeDietItem(mealItem);
                                 Alert.alert(
                                   currentLanguage === 'zh' ? '成功' : 'Success',
                                   currentLanguage === 'zh' ? '已删除' : 'Deleted successfully'
                                 );
                               } catch (error) {
                                 console.error('删除失败:', error);
-                                // 即使出错也从前端删除
-                                setDietPlan(prev => prev.filter(item => 
-                                  String(item.id) !== String(itemId)
-                                ));
                                 Alert.alert(
-                                  currentLanguage === 'zh' ? '已删除' : 'Deleted',
-                                  currentLanguage === 'zh' ? '已从列表中移除' : 'Removed from list'
+                                  currentLanguage === 'zh' ? '删除失败' : 'Delete failed',
+                                  error.message
                                 );
                               }
                             }
@@ -421,14 +351,6 @@ export const DietScreen = ({ navigation }) => {
                     onPress={async () => {
                       const newCompletedState = !(completedMeals[dateKey]?.[index]);
                       
-                      setCompletedMeals(prev => ({
-                        ...prev,
-                        [dateKey]: {
-                          ...(prev[dateKey] || {}),
-                          [index]: newCompletedState
-                        }
-                      }));
-                      
                       const calories = (mealItem.calories && mealItem.calories > 0) ? mealItem.calories : 300;
                       await saveCompletionStatus(
                         new Date(),
@@ -438,10 +360,6 @@ export const DietScreen = ({ navigation }) => {
                         mealItem.time || mealItem.mealTime || `餐次${index}`,
                         calories
                       );
-                      
-                      setTimeout(async () => {
-                        await loadCaloriesFromBackend(7);
-                      }, 100);
                     }}
                   >
                     <Image

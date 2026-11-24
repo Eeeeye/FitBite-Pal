@@ -204,6 +204,7 @@ Main endpoint groups:
 | [USER_MANUAL.md](USER_MANUAL.md) | User guide for the mobile app and admin interface |
 | [API_DOCUMENTATION.md](API_DOCUMENTATION.md) | REST API reference |
 | [重构审计](docs/重构审计.md) | Data integrity, authorization, migration and verification evidence (Chinese) |
+| [Home and published-plan benchmarks](docs/performance/home-plan.md) | Before-and-after latency, throughput, InnoDB lock waits and reproduction steps (Chinese) |
 | [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) | Docker deployment guide |
 | [TEST_REPORT.md](TEST_REPORT.md) | Test cases and results |
 | [SRS.md](SRS.md) | Software requirements specification |
