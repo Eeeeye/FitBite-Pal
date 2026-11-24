@@ -3,6 +3,8 @@ package com.fitbitepal.backend.controller;
 import com.fitbitepal.backend.model.*;
 import com.fitbitepal.backend.repository.*;
 import com.fitbitepal.backend.service.UserService;
+import com.fitbitepal.backend.service.CompletionService;
+import com.fitbitepal.backend.dto.CompletionItemRequest;
 import com.fitbitepal.backend.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -37,7 +41,14 @@ public class AdminController {
     private final SystemConfigRepository systemConfigRepository;
     private final CalorieRecordRepository calorieRecordRepository;
     private final MealSetRepository mealSetRepository;
+    private final CompletionService completions;
     private final UserService userService;  // ✅ 添加 UserService 用于缓存管理
+
+    @GetMapping({"", "/"})
+    public ResponseEntity<Void> console(HttpServletRequest request) {
+        URI page = URI.create(request.getContextPath() + "/admin/index.html");
+        return ResponseEntity.status(302).location(page).build();
+    }
 
     // ==================== 仪表盘统计 ====================
 
@@ -263,24 +274,15 @@ public class AdminController {
             @PathVariable Long userId,
             @RequestBody Map<String, Object> request) {
 
-        requireUser(userId);
-        LocalDate recordDate = parseLocalDate(request.get("recordDate"));
-        String itemType = parseRequiredString(request.get("itemType"), "itemType");
-        Integer itemIndex = parseIntegerRequired(request.get("itemIndex"), "itemIndex");
+        LocalDate date = parseLocalDate(request.get("recordDate"));
+        String type = parseRequiredString(request.get("itemType"), "itemType");
+        CompletionItemRequest item = new CompletionItemRequest();
+        item.setItemIndex(parseIntegerRequired(request.get("itemIndex"), "itemIndex"));
+        item.setCompleted(parseBooleanRequired(request.get("completed"), "completed"));
+        item.setItemName(parseStringNullable(request.get("itemName")));
+        item.setCalories(parseIntegerNullable(request.get("calories")));
 
-        CompletionRecord record = completionRecordRepository
-                .findByUserIdAndRecordDateAndItemTypeAndItemIndex(userId, recordDate, itemType, itemIndex)
-                .orElseGet(CompletionRecord::new);
-
-        record.setUserId(userId);
-        record.setRecordDate(recordDate);
-        record.setItemType(itemType);
-        record.setItemIndex(itemIndex);
-        record.setCompleted(parseBooleanRequired(request.get("completed"), "completed"));
-        record.setItemName(parseStringNullable(request.get("itemName")));
-        record.setCalories(parseIntegerNullable(request.get("calories")));
-
-        CompletionRecord saved = completionRecordRepository.save(record);
+        CompletionRecord saved = completions.save(userId, date, type, item);
         userService.evictAllUserCaches(userId);
         return ResponseEntity.ok(ApiResponse.success(saved));
     }

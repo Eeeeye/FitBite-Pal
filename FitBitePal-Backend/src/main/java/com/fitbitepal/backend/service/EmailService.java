@@ -1,23 +1,23 @@
 package com.fitbitepal.backend.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.lang.NonNull;
 import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.Objects;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * 邮件发送与验证码管理服务
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -37,70 +37,52 @@ public class EmailService {
 
     private static final String CACHE_KEY_PREFIX = "fitbitepal:password-reset:";
 
+    private static final DefaultRedisScript<Long> CONSUME_CODE = new DefaultRedisScript<>("""
+            if redis.call('GET', KEYS[1]) == ARGV[1] then
+                return redis.call('DEL', KEYS[1])
+            end
+            return 0
+            """, Long.class);
+
     /**
      * 发送验证码邮件
      */
     public void sendVerificationCode(@NonNull String email) {
-        String code = Objects.requireNonNull(generateCode(), "verification code must not be null");
-        cacheCode(email, code);
-        sendEmail(email, code);
+        String code = generateCode();
+        Duration ttl = Duration.ofMinutes(Math.max(1, codeTtlMinutes));
+        stringRedisTemplate.opsForValue().set(buildCacheKey(email), code, ttl);
+        try {
+            sendEmail(email, code);
+        } catch (MailException ex) {
+            // A newer delivery may have replaced this code while SMTP was pending.
+            consumeCode(email, code);
+            throw new IllegalStateException("Failed to send verification email", ex);
+        }
     }
 
     /**
      * 验证用户输入的验证码
      */
     public boolean verifyCode(@NonNull String email, @NonNull String code) {
-        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
-        String cacheKey = Objects.requireNonNull(buildCacheKey(email), "cache key must not be null");
-        String cachedCode = ops.get(cacheKey);
-
-        if (cachedCode == null) {
-            log.warn("验证码不存在或已过期: {}", email);
-            return false;
-        }
-
-        boolean valid = cachedCode.equals(code);
-        if (valid) {
-            stringRedisTemplate.delete(cacheKey);
-            log.info("验证码验证成功: {}", email);
-        } else {
-            log.warn("验证码不匹配: {}", email);
-        }
-        return valid;
+        return code.equals(stringRedisTemplate.opsForValue().get(buildCacheKey(email)));
     }
 
-    private void cacheCode(@NonNull String email, @NonNull String code) {
-        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
-        Duration ttl = Objects.requireNonNull(
-                Duration.ofMinutes(Math.max(1, codeTtlMinutes)),
-                "verification code ttl must not be null"
-        );
-        String cacheKey = Objects.requireNonNull(buildCacheKey(email), "cache key must not be null");
-        String cacheValue = Objects.requireNonNull(code, "verification code must not be null");
-        ops.set(
-                cacheKey,
-                cacheValue,
-                ttl
-        );
+    public boolean consumeCode(String email, String code) {
+        Long consumed = stringRedisTemplate.execute(CONSUME_CODE, List.of(buildCacheKey(email)), code);
+        return Long.valueOf(1).equals(consumed);
     }
 
     private void sendEmail(@NonNull String email, @NonNull String code) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(mailFrom);
-            message.setTo(email);
-            message.setSubject("FitBitePal - Password Reset Code");
-            message.setText(String.format(
-                    "Your verification code is %s. It will expire in %d minutes.\n\nIf you did not request this, please ignore this email.",
-                    code,
-                    codeTtlMinutes
-            ));
-            mailSender.send(message);
-            log.info("验证码邮件已发送至 {}", email);
-        } catch (Exception ex) {
-            log.error("发送验证码邮件失败: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Failed to send verification email");
-        }
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(mailFrom);
+        message.setTo(email);
+        message.setSubject("FitBitePal - Password Reset Code");
+        message.setText(String.format(
+                "Your verification code is %s. It will expire in %d minutes.\n\nIf you did not request this, please ignore this email.",
+                code,
+                codeTtlMinutes
+        ));
+        mailSender.send(message);
     }
 
     private String generateCode() {
@@ -112,7 +94,6 @@ public class EmailService {
     }
 
     private String buildCacheKey(@NonNull String email) {
-        String normalizedEmail = Objects.requireNonNull(email, "email must not be null").toLowerCase();
-        return Objects.requireNonNull(CACHE_KEY_PREFIX + normalizedEmail, "cache key must not be null");
+        return CACHE_KEY_PREFIX + email.toLowerCase(Locale.ROOT);
     }
 }

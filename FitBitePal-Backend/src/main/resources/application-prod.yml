@@ -84,7 +84,7 @@ server:
   
 # JWT配置 (生产环境必须使用强密钥)
 jwt:
-  secret: ${JWT_SECRET}  # 必须通过环境变量设置
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
 
 # 日志配置 (生产环境)

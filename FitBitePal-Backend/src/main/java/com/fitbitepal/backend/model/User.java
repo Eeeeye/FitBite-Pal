@@ -1,6 +1,9 @@
 package com.fitbitepal.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
+import lombok.ToString;
+import org.hibernate.annotations.DynamicUpdate;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -11,6 +14,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
+@DynamicUpdate
 @Table(name = "users")
 @Data
 @NoArgsConstructor
@@ -32,6 +36,8 @@ public class User {
     private String phone;  // 电话号码
     
     @Column(nullable = false)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
     private String password;
     
     // 角色：USER（普通用户）, ADMIN（管理员）

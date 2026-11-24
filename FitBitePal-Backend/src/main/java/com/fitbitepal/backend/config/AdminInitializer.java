@@ -5,6 +5,7 @@ import com.fitbitepal.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -24,12 +25,16 @@ public class AdminInitializer implements CommandLineRunner {
 
     // 管理员默认账户信息
     private static final String ADMIN_USERNAME = "admin";
-    private static final String ADMIN_PASSWORD = "86927514";
-    private static final String ADMIN_EMAIL = "admin@fitbitepal.com";
+    @Value("${FITBITE_ADMIN_PASSWORD:}")
+    private String bootstrapPassword;
+    @Value("${FITBITE_ADMIN_EMAIL:}")
+    private String bootstrapEmail;
 
     @Override
     public void run(String... args) {
-        initializeAdminAccount();
+        if (!bootstrapPassword.isBlank()) {
+            initializeAdminAccount();
+        }
     }
 
     private void initializeAdminAccount() {
@@ -39,12 +44,14 @@ public class AdminInitializer implements CommandLineRunner {
             return;
         }
 
-        log.info("🔧 正在创建管理员账户...");
+        if (bootstrapEmail.isBlank()) {
+            throw new IllegalStateException("Set FITBITE_ADMIN_EMAIL to provision the administrator");
+        }
         
         User admin = new User();
         admin.setUsername(ADMIN_USERNAME);
-        admin.setEmail(ADMIN_EMAIL);
-        admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
+        admin.setEmail(bootstrapEmail);
+        admin.setPassword(passwordEncoder.encode(bootstrapPassword));
         admin.setRole("ADMIN");
         admin.setGender("Male");
         admin.setAge(30);
@@ -63,7 +70,6 @@ public class AdminInitializer implements CommandLineRunner {
         
         log.info("✅ 管理员账户创建成功");
         log.info("   用户名: {}", ADMIN_USERNAME);
-        log.info("   密码: {}", ADMIN_PASSWORD);
     }
 }
 

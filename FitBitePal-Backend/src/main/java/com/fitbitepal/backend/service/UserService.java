@@ -46,7 +46,6 @@ public class UserService {
     private final PlanGenerationService planGenerationService;
     private final DynamicPlanGenerationService dynamicPlanService;
     private final DynamicDietPlanService dynamicDietPlanService;
-    private final EmailService emailService;
     
     /**
      * 用户注册
@@ -243,54 +242,20 @@ public class UserService {
         return dietPlanRepository.findByUserIdAndPlanDateOrderByMealTimeAsc(userId, date);
     }
     
-    /**
-     * 发送密码重置验证码
-     */
-    public void sendPasswordResetCode(String email) {
-        // 检查邮箱是否存在
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Email not found"));
-        
-        // 发送验证码
-        emailService.sendVerificationCode(email);
-    }
-    
-    /**
-     * 验证密码重置验证码
-     */
-    public boolean verifyResetCode(String email, String code) {
-        return emailService.verifyCode(email, code);
-    }
-    
-    /**
-     * 重置密码
-     * 注意：验证码已在前一步（/verify-code）验证过，这里不再重复验证
-     */
     @Transactional
-    public void resetPassword(ResetPasswordRequest request) {
-        // 查找用户
-        User user = userRepository.findByEmail(request.getEmail())
+    @CacheEvict(value = CACHE_USER, key = "#userId")
+    public User updateBasicInfo(Long userId, BasicInfoRequest request) {
+        User user = userRepository.findForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        // 更新密码
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        User savedUser = userRepository.save(user);
-        
-        // ✅ 手动清除用户缓存（因为此方法签名无法使用 @CacheEvict）
-        evictUserCache(savedUser.getId());
-        
-        log.info("密码重置成功: {}", request.getEmail());
+        if (request.getUsername() != null) {
+            user.setUsername(request.getUsername());
+        }
+        if (request.hasPhone()) {
+            user.setPhone(request.getPhone());
+        }
+        return user;
     }
-    
-    /**
-     * 更新用户基本信息
-     */
-    @Transactional
-    @CacheEvict(value = CACHE_USER, key = "#user.id")  // ✅ 清除用户缓存
-    public User updateUser(User user) {
-        return userRepository.save(user);
-    }
-    
+
     /**
      * 手动清除用户缓存
      */

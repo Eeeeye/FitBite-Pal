@@ -195,16 +195,8 @@ mvn spring-boot:run
 4. 点击"发送验证码"
 5. 检查邮箱收件箱（可能在垃圾邮件中）
 
-### 4. 查看后端日志
-发送成功时会看到：
-```
-📧 验证码邮件已发送至 your-email@example.com
-```
-
-发送失败时会看到错误信息：
-```
-❌ 发送验证码邮件失败: Authentication failed
-```
+### 4. 验证重置流程
+先在客户端核对验证码，再设置新密码并重新登录。验证码在最终重置时一次性消费。邮件服务异常时可以检查后端日志。
 
 ---
 
@@ -246,7 +238,7 @@ docker run -d -p 6379:6379 redis:alpine
 
 **解决方案**:
 1. **检查垃圾邮件箱**：验证码邮件可能被标记为垃圾邮件
-2. **检查后端日志**：确认"验证码邮件已发送"的日志
+2. **检查后端日志**，排查邮件发送异常
 3. **等待1-2分钟**：有时邮件会延迟
 4. **尝试重发**：点击"重新发送"按钮
 
@@ -291,7 +283,7 @@ docker run -d \
 1. ✅ 使用专用的"noreply@"邮箱
 2. ✅ 定期更换SMTP密码
 3. ✅ 在生产环境使用HTTPS
-4. ✅ 限制验证码发送频率（当前60秒）
+4. ✅ 客户端倒计时之外，在生产网关配置发码与校验限流
 5. ✅ 监控邮件发送失败率
 
 ---
@@ -300,7 +292,7 @@ docker run -d \
 
 ### 发送验证码
 ```http
-POST /api/auth/send-verification-code
+POST /api/auth/send-reset-code
 Content-Type: application/json
 
 {
@@ -312,7 +304,8 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "message": "验证码已发送"
+  "message": "Verification code sent to your email",
+  "data": null
 }
 ```
 

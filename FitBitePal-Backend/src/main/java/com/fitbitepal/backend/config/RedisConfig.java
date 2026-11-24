@@ -104,6 +104,7 @@ public class RedisConfig {
         cacheConfigs.put(CACHE_COMPLETION, defaultConfig.entryTtl(Duration.ofHours(6)));
 
         return RedisCacheManager.builder(connectionFactory)
+                .transactionAware()
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(cacheConfigs)
                 .build();

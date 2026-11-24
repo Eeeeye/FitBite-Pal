@@ -103,7 +103,7 @@ The repository is organized as a full-stack project:
 
 ### Run with Docker Compose
 
-From the repository root:
+Copy `env.docker.example` to `.env` and set distinct `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD` values. Set `JWT_SECRET` to the output of `openssl rand -hex 32`. For the first admin login, also set `FITBITE_ADMIN_EMAIL` to an address you control and `FITBITE_ADMIN_PASSWORD` to a private password. Then run from the repository root:
 
 ```bash
 docker compose up -d mysql redis backend
@@ -112,7 +112,7 @@ docker compose up -d mysql redis backend
 The backend will be available at:
 
 - API base URL: `http://localhost:8080/api`
-- Admin page: `http://localhost:8080/api/admin/`
+- Admin page: `http://localhost:8080/api/admin/index.html`
 - Health check: `http://localhost:8080/api/actuator/health`
 
 ### Run the Backend Locally
@@ -163,7 +163,8 @@ Common backend values can be configured through Spring environment variables:
 | `SPRING_DATASOURCE_PASSWORD` | Database password |
 | `SPRING_DATA_REDIS_HOST` | Redis host |
 | `SPRING_DATA_REDIS_PORT` | Redis port |
-| `JWT_SECRET` | JWT signing secret |
+| `JWT_SECRET` | Required signing key for production and Compose |
+| `FITBITE_ADMIN_EMAIL`, `FITBITE_ADMIN_PASSWORD` | Optional first-start credentials for username `admin`. Remove the bootstrap password after provisioning. Existing accounts keep their credentials. |
 | `JWT_EXPIRATION` | Token lifetime in milliseconds |
 | `MAIL_HOST` | SMTP host |
 | `MAIL_PORT` | SMTP port |
@@ -228,7 +229,15 @@ cd FitBitePal-Mobile
 npx eas build -p ios --profile preview
 ```
 
+### Backend verification
+
+Run `mvn verify` in `FitBitePal-Backend` to build the Java 17 application and run its HTTP and persistence regression tests. The default tests use an isolated H2 database. The backend CI job runs the same flows against disposable MySQL 8 and enables Redis 7 tests for expiring and atomically consuming reset codes.
+
+When reusing a MySQL volume, provision the application account named by `MYSQL_USER` on the FitBite database before switching the backend credentials. The MySQL image provisions this account automatically for an empty volume.
+
 ## Security Notes
+
+- For upgrades from the original demo, rotate the previously seeded administrator password and verify its recovery email before exposing the service. Replacing the JWT signing key requires users to sign in again.
 
 - Do not commit real `.env` files, database credentials, SMTP passwords, JWT secrets, or API keys.
 - Use strong `JWT_SECRET` values outside local development.

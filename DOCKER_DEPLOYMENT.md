@@ -190,6 +190,9 @@ nano .env
 # MySQL 数据库配置
 # ========================================
 MYSQL_ROOT_PASSWORD=FitBitePal2024!Secure    # 修改为强密码
+MYSQL_USER=fitbite_app
+# 为应用账户设置独立密码
+MYSQL_PASSWORD=
 MYSQL_DATABASE=fitbitepal
 MYSQL_PORT=3306
 
@@ -204,7 +207,8 @@ REDIS_PORT=6379
 BACKEND_PORT=8080
 
 # JWT 密钥（必须修改！至少32位随机字符串）
-JWT_SECRET=YourSuperSecretJWTKey2024FitBitePalProductionMin256Bits
+# 使用 openssl rand -hex 32 生成独立签名密钥并填入
+JWT_SECRET=
 JWT_EXPIRATION=86400000
 
 # ========================================

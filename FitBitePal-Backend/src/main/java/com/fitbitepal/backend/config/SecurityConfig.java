@@ -15,6 +15,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
+@EnableMethodSecurity
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -59,13 +62,13 @@ public class SecurityConfig {
                                 "/ai/health",
                                 "/pose/health",
                                 // Actuator 健康检查
-                                "/actuator/**",
                                 "/actuator/health",
                                 "/actuator/info",
                                 // 管理后台
-                                "/admin/**",
+                                "/admin", "/admin/", "/admin/index.html",
                                 "/static/**"
                         ).permitAll()
+                        .requestMatchers("/admin/**", "/actuator/**").hasRole("ADMIN")
                         // 其他所有请求需要认证
                         .anyRequest().authenticated()
                 )

@@ -407,15 +407,29 @@
         .toast.success { border-left: 4px solid var(--secondary); }
         .toast.error { border-left: 4px solid var(--danger); }
         .toast.show { display: flex; }
+        [hidden] { display: none !important; }
+        #adminLogin { margin: auto; padding: 2rem; border: 0; border-radius: 12px; }
+        #adminLoginForm { display: grid; gap: 1rem; }
+        #adminLoginForm label { display: grid; gap: .3rem; }
     </style>
 </head>
 <body>
-    <div class="layout">
+    <dialog id="adminLogin">
+        <form id="adminLoginForm">
+            <h2>管理员登录</h2>
+            <label>用户名或邮箱 <input name="account" autocomplete="username" required></label>
+            <label>密码 <input name="password" type="password" autocomplete="current-password" required></label>
+            <button class="btn btn-primary" type="submit">登录</button>
+            <p id="loginError" role="alert"></p>
+        </form>
+    </dialog>
+    <div class="layout" id="adminLayout" hidden>
         <!-- 侧边栏 -->
         <aside class="sidebar">
             <div class="logo">
                 <h1>🏋️ FitBitePal</h1>
             </div>
+            <button class="btn btn-outline btn-sm" onclick="location.reload()">退出登录</button>
             <ul class="nav-menu">
                 <li class="nav-item active" onclick="showPage('dashboard')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -874,6 +888,27 @@
 
     <script>
         const API_BASE = '/api/admin';
+        let adminToken;
+        const loginDialog = document.getElementById('adminLogin');
+        loginDialog.addEventListener('cancel', event => event.preventDefault());
+
+        async function adminFetch(url, options = {}) {
+            const headers = new Headers(options.headers);
+            headers.set('Authorization', 'Bearer ' + adminToken);
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401 || response.status === 403) {
+                location.reload();
+                throw new Error('请重新登录');
+            }
+            return response;
+        }
+
+        function escapeHtml(value) {
+            const element = document.createElement('span');
+            element.textContent = value ?? '';
+            return element.innerHTML;
+        }
+
 
         // 显示页面
         function showPage(pageId) {
@@ -918,7 +953,7 @@
         async function editFood(foodId) {
             try {
                 // 获取食品详情
-                const res = await fetch(API_BASE + '/foods?size=100');
+                const res = await adminFetch(API_BASE + '/foods?size=100');
                 const data = await res.json();
                 if (data.success && data.data.foods) {
                     const food = data.data.foods.find(f => f.id === foodId);
@@ -964,7 +999,7 @@
         // 加载仪表盘
         async function loadDashboard() {
             try {
-                const res = await fetch(API_BASE + '/dashboard');
+                const res = await adminFetch(API_BASE + '/dashboard');
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('totalUsers').textContent = data.data.totalUsers || 0;
@@ -974,16 +1009,16 @@
                 }
 
                 // 加载最近用户
-                const usersRes = await fetch(API_BASE + '/users?size=5');
+                const usersRes = await adminFetch(API_BASE + '/users?size=5');
                 const usersData = await usersRes.json();
                 if (usersData.success && usersData.data.users) {
                     const tbody = document.getElementById('recentUsers');
                     tbody.innerHTML = usersData.data.users.map(u => `
                         <tr>
                             <td>${u.id}</td>
-                            <td>${u.username}</td>
-                            <td>${u.email}</td>
-                            <td><span class="badge badge-${u.role?.toLowerCase() || 'user'}">${u.role || 'USER'}</span></td>
+                            <td>${escapeHtml(u.username)}</td>
+                            <td>${escapeHtml(u.email)}</td>
+                            <td><span class="badge badge-${u.role === 'ADMIN' ? 'admin' : 'user'}">${u.role === 'ADMIN' ? 'ADMIN' : 'USER'}</span></td>
                             <td>${new Date(u.createdAt).toLocaleDateString()}</td>
                         </tr>
                     `).join('');
@@ -996,18 +1031,18 @@
         // 加载用户列表
         async function loadUsers() {
             try {
-                const res = await fetch(API_BASE + '/users?size=50');
+                const res = await adminFetch(API_BASE + '/users?size=50');
                 const data = await res.json();
                 if (data.success && data.data.users) {
                     const tbody = document.getElementById('usersList');
                     tbody.innerHTML = data.data.users.map(u => `
                         <tr>
                             <td>${u.id}</td>
-                            <td>${u.username}</td>
-                            <td>${u.email}</td>
-                            <td>${u.goal || '-'}</td>
+                            <td>${escapeHtml(u.username)}</td>
+                            <td>${escapeHtml(u.email)}</td>
+                            <td>${escapeHtml(u.goal || '-')}</td>
                             <td>${u.bmi ? u.bmi.toFixed(1) : '-'}</td>
-                            <td><span class="badge badge-${u.role?.toLowerCase() || 'user'}">${u.role || 'USER'}</span></td>
+                            <td><span class="badge badge-${u.role === 'ADMIN' ? 'admin' : 'user'}">${u.role === 'ADMIN' ? 'ADMIN' : 'USER'}</span></td>
                             <td class="action-btns">
                                 <button class="btn btn-outline btn-sm" onclick="viewUser(${u.id})">查看</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">删除</button>
@@ -1029,7 +1064,7 @@
         async function deleteUser(userId) {
             if (!confirm('确定要删除这个用户吗？此操作不可恢复！')) return;
             try {
-                const res = await fetch(API_BASE + '/users/' + userId, { method: 'DELETE' });
+                const res = await adminFetch(API_BASE + '/users/' + userId, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
                     showToast('用户已删除');
@@ -1045,7 +1080,7 @@
         // 加载食品列表
         async function loadFoods() {
             try {
-                const res = await fetch(API_BASE + '/foods?size=100');
+                const res = await adminFetch(API_BASE + '/foods?size=100');
                 const data = await res.json();
                 if (data.success && data.data.foods) {
                     const tbody = document.getElementById('foodsList');
@@ -1055,8 +1090,8 @@
                         tbody.innerHTML = data.data.foods.map(f => `
                             <tr>
                                 <td>${f.id}</td>
-                                <td>${f.name}</td>
-                                <td>${f.category || '-'}</td>
+                                <td>${escapeHtml(f.name)}</td>
+                                <td>${escapeHtml(f.category || '-')}</td>
                                 <td>${f.calories || '-'}</td>
                                 <td>${f.protein || '-'}</td>
                                 <td>${f.carbs || '-'}</td>
@@ -1085,7 +1120,7 @@
                 if (mealType) params.push('mealType=' + encodeURIComponent(mealType));
                 if (params.length > 0) url += '?' + params.join('&');
 
-                const res = await fetch(url);
+                const res = await adminFetch(url);
                 const data = await res.json();
                 if (data.success && data.data) {
                     // 更新统计
@@ -1103,9 +1138,9 @@
                         tbody.innerHTML = mealSets.map(m => `
                             <tr>
                                 <td>${m.id}</td>
-                                <td><strong>${m.name}</strong></td>
-                                <td>${goalLabels[m.goalType] || m.goalType}</td>
-                                <td>${mealLabels[m.mealType] || m.mealType}</td>
+                                <td><strong>${escapeHtml(m.name)}</strong></td>
+                                <td>${escapeHtml(goalLabels[m.goalType] || m.goalType)}</td>
+                                <td>${escapeHtml(mealLabels[m.mealType] || m.mealType)}</td>
                                 <td>${m.calories} kcal</td>
                                 <td>${m.protein}g</td>
                                 <td>${m.carbs}g</td>
@@ -1143,7 +1178,7 @@
         // 编辑套餐
         async function editMealSet(mealSetId) {
             try {
-                const res = await fetch(API_BASE + '/meal-sets');
+                const res = await adminFetch(API_BASE + '/meal-sets');
                 const data = await res.json();
                 if (data.success && data.data.mealSets) {
                     const mealSet = data.data.mealSets.find(m => m.id === mealSetId);
@@ -1207,7 +1242,7 @@
                     method = 'PUT';
                 }
                 
-                const res = await fetch(url, {
+                const res = await adminFetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(mealSet)
@@ -1229,7 +1264,7 @@
         async function deleteMealSet(mealSetId) {
             if (!confirm('确定要删除这个套餐吗？删除后用户将不再收到此套餐的推荐。')) return;
             try {
-                const res = await fetch(API_BASE + '/meal-sets/' + mealSetId, { method: 'DELETE' });
+                const res = await adminFetch(API_BASE + '/meal-sets/' + mealSetId, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
                     showToast('套餐已删除');
@@ -1273,7 +1308,7 @@
                     method = 'PUT';
                 }
                 
-                const res = await fetch(url, {
+                const res = await adminFetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(food)
@@ -1295,7 +1330,7 @@
         async function deleteFood(foodId) {
             if (!confirm('确定要删除这个食品吗？')) return;
             try {
-                const res = await fetch(API_BASE + '/foods/' + foodId, { method: 'DELETE' });
+                const res = await adminFetch(API_BASE + '/foods/' + foodId, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
                     showToast('食品已删除');
@@ -1311,7 +1346,7 @@
         // 加载配置列表
         async function loadConfigs() {
             try {
-                const res = await fetch(API_BASE + '/configs');
+                const res = await adminFetch(API_BASE + '/configs');
                 const data = await res.json();
                 if (data.success && data.data) {
                     const tbody = document.getElementById('configsList');
@@ -1321,11 +1356,11 @@
                     } else {
                         tbody.innerHTML = configs.map(c => `
                             <tr>
-                                <td><code>${c.configKey}</code></td>
-                                <td>${c.configValue}</td>
-                                <td>${c.configType || '-'}</td>
-                                <td>${c.category || '-'}</td>
-                                <td>${c.description || '-'}</td>
+                                <td><code>${escapeHtml(c.configKey)}</code></td>
+                                <td>${escapeHtml(c.configValue)}</td>
+                                <td>${escapeHtml(c.configType || '-')}</td>
+                                <td>${escapeHtml(c.category || '-')}</td>
+                                <td>${escapeHtml(c.description || '-')}</td>
                                 <td class="action-btns">
                                     <button class="btn btn-outline btn-sm" onclick="editConfig(${c.id})">编辑</button>
                                     <button class="btn btn-danger btn-sm" onclick="deleteConfig(${c.id})">删除</button>
@@ -1342,7 +1377,7 @@
         // 初始化默认配置
         async function initDefaultConfigs() {
             try {
-                const res = await fetch(API_BASE + '/configs/init-defaults', { method: 'POST' });
+                const res = await adminFetch(API_BASE + '/configs/init-defaults', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
                     showToast('默认配置已初始化');
@@ -1381,7 +1416,7 @@
                     method = 'PUT';
                 }
                 
-                const res = await fetch(url, {
+                const res = await adminFetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
@@ -1405,7 +1440,7 @@
         async function deleteConfig(idOrKey) {
             if (!confirm('确定要删除这个配置吗？')) return;
             try {
-                const res = await fetch(API_BASE + '/configs/' + encodeURIComponent(idOrKey), { method: 'DELETE' });
+                const res = await adminFetch(API_BASE + '/configs/' + encodeURIComponent(idOrKey), { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
                     showToast('配置已删除');
@@ -1421,7 +1456,7 @@
         // 编辑配置
         async function editConfig(configId) {
             try {
-                const res = await fetch(API_BASE + '/configs');
+                const res = await adminFetch(API_BASE + '/configs');
                 const data = await res.json();
                 if (data.success && data.data.configs) {
                     const config = data.data.configs.find(c => c.id === configId);
@@ -1444,8 +1479,28 @@
         }
 
         // 初始加载
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboard();
+        loginDialog.showModal();
+        document.getElementById('adminLoginForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usernameOrEmail: form.account.value, password: form.password.value })
+                });
+                const result = await response.json();
+                if (!response.ok || result.data?.role !== 'ADMIN' || !result.data.token) {
+                    throw new Error('请使用管理员账户登录');
+                }
+                adminToken = result.data.token;
+                form.reset();
+                loginDialog.close();
+                document.getElementById('adminLayout').hidden = false;
+                loadDashboard();
+            } catch (error) {
+                document.getElementById('loginError').textContent = error.message;
+            }
         });
     </script>
 </body>

@@ -2,33 +2,13 @@
 
 ## ✅ 已创建 `application-dev.yml`
 
-配置文件已创建，QQ邮箱授权码已填入。
+配置文件已创建，从环境变量 `MAIL_USERNAME` 和 `MAIL_PASSWORD` 读取发件账号和 SMTP 授权码。
 
 ---
 
-## ⚠️ 需要修改的地方
+## 配置开发邮箱
 
-打开 `application-dev.yml`，找到以下两处：
-
-### 1. 第20行 - 邮箱用户名
-```yaml
-username: your-qq-number@qq.com  # ⚠️ TODO: 修改为您的QQ邮箱
-```
-**修改为**：
-```yaml
-username: 您的QQ号@qq.com  # 例如: 123456789@qq.com
-```
-
-### 2. 第40行 - 发件人地址
-```yaml
-from: your-qq-number@qq.com  # ⚠️ TODO: 修改为您的QQ邮箱
-```
-**修改为**：
-```yaml
-from: 您的QQ号@qq.com  # 例如: 123456789@qq.com
-```
-
----
+在启动后端的终端或 IDE 运行配置中设置 `MAIL_USERNAME` 和 `MAIL_PASSWORD`。前者是邮箱账号，后者是服务商签发的 SMTP 授权码。需要指定不同的发件地址时，设置 `MAIL_FROM`。
 
 ## 🚀 使用配置文件启动
 
@@ -52,23 +32,14 @@ mvn spring-boot:run
 
 ## ✅ 验证配置
 
-启动后，查看日志应该看到：
-
-```
-✅ 邮件服务配置成功
-   Host: smtp.qq.com
-   Port: 587
-   Username: 您的QQ邮箱@qq.com
-```
-
-如果看到这些信息，说明配置成功！
+启动前配置 `MAIL_USERNAME` 和 `MAIL_PASSWORD`。通过应用的找回密码页面发送验证码，再用测试邮箱核对是否收到邮件。
 
 ---
 
 ## 🎯 配置文件包含的内容
 
 - ✅ QQ邮箱SMTP配置（端口587）
-- ✅ QQ邮箱授权码已填入
+- ✅ 从环境变量 `MAIL_USERNAME` 和 `MAIL_PASSWORD` 读取发件账号和 SMTP 授权码
 - ✅ SMTP认证和STARTTLS配置
 - ✅ 数据库配置（继承主配置）
 - ✅ Redis配置（继承主配置）

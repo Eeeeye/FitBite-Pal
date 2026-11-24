@@ -1,6 +1,7 @@
 package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.ApiResponse;
+import com.fitbitepal.backend.dto.BasicInfoRequest;
 import com.fitbitepal.backend.dto.UserProfileRequest;
 import com.fitbitepal.backend.dto.UserProfileResponse;
 import com.fitbitepal.backend.model.DietPlan;
@@ -8,6 +9,7 @@ import com.fitbitepal.backend.model.TrainingPlan;
 import com.fitbitepal.backend.model.User;
 import com.fitbitepal.backend.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/users")
+@PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
 @RequiredArgsConstructor
 public class UserController {
     
@@ -86,17 +89,8 @@ public class UserController {
     @PutMapping("/{userId}/basic-info")
     public ResponseEntity<ApiResponse<User>> updateBasicInfo(
             @PathVariable Long userId,
-            @RequestBody java.util.Map<String, String> updates) {
-        User user = userService.getUserById(userId);
-        
-        if (updates.containsKey("username")) {
-            user.setUsername(updates.get("username"));
-        }
-        if (updates.containsKey("phone")) {
-            user.setPhone(updates.get("phone"));
-        }
-        
-        User updated = userService.updateUser(user);
+            @Valid @RequestBody BasicInfoRequest request) {
+        User updated = userService.updateBasicInfo(userId, request);
         return ResponseEntity.ok(ApiResponse.success("User info updated successfully", updated));
     }
     

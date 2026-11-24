@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/fitbitepal?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
     username: root
-    password: 999886  # 请修改为你的MySQL密码
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10
@@ -43,8 +43,8 @@ spring:
   mail:
     host: ${MAIL_HOST:smtp.qq.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:3030478174@qq.com}
-    password: ${MAIL_PASSWORD:wzzgjohbsbzzdebi}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     protocol: smtp
     properties:
       mail:
@@ -67,7 +67,7 @@ server:
   
 # JWT配置
 jwt:
-  secret: FitBitePal-Super-Secret-Key-2024-Change-This-In-Production-Min-256-Bits
+  secret: ${JWT_SECRET:${random.uuid}${random.uuid}}
   expiration: 86400000  # 24小时(毫秒)
 
 # 日志配置
@@ -106,7 +106,7 @@ app:
       length: ${VERIFICATION_CODE_LENGTH:6}
       ttl-minutes: ${VERIFICATION_CODE_TTL_MINUTES:5}
     mail:
-      from: ${MAIL_FROM:3030478174@qq.com}
+      from: ${MAIL_FROM:${MAIL_USERNAME:noreply@fitbitepal.com}}
   
   # AI 服务配置
   ai:

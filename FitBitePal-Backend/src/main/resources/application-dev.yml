@@ -6,9 +6,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/fitbitepal?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
-  
-  # Redis配置（继承自主配置文件）
+    password: ${DB_PASSWORD:}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -19,8 +17,8 @@ spring:
   mail:
     host: smtp.qq.com
     port: 587  # 使用STARTTLS端口
-    username: 3030478174@qq.com
-    password: wzzgjohbsbzzdebi  # QQ邮箱授权码
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}  # QQ邮箱授权码
     protocol: smtp
     properties:
       mail:
@@ -46,7 +44,7 @@ app:
       ttl-minutes: 5
     # 邮件发送配置
     mail:
-      from: 3030478174@qq.com
+      from: ${MAIL_FROM:${MAIL_USERNAME:noreply@fitbitepal.com}}
   
   # AI服务配置
   ai:

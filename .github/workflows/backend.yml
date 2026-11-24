@@ -1,0 +1,47 @@
+name: Backend verification
+on:
+  push:
+    paths: ['FitBitePal-Backend/**', '.github/workflows/backend.yml']
+  pull_request:
+    paths: ['FitBitePal-Backend/**', '.github/workflows/backend.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: fitbite_ci
+          MYSQL_USER: fitbite_ci
+          MYSQL_PASSWORD: ci-only
+          MYSQL_ROOT_PASSWORD: ci-root-only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=3s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: FitBitePal-Backend/pom.xml
+      - name: Build and test with disposable MySQL and Redis
+        working-directory: FitBitePal-Backend
+        env:
+          FITBITE_TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/fitbite_ci?allowPublicKeyRetrieval=true&useSSL=false
+          FITBITE_TEST_DB_USER: fitbite_ci
+          FITBITE_TEST_DB_PASSWORD: ci-only
+          FITBITE_TEST_DB_DRIVER: com.mysql.cj.jdbc.Driver
+          FITBITE_TEST_DB_DIALECT: org.hibernate.dialect.MySQLDialect
+          FITBITE_TEST_REDIS_PORT: '6379'
+        run: mvn -B -ntp verify

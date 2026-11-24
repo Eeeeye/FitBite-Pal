@@ -1,8 +1,6 @@
 # FitBite Pal - Docker Compose 配置
 # 用于本地开发和测试环境
 
-version: '3.8'
-
 services:
   # ========================================
   # MySQL 数据库
@@ -12,20 +10,22 @@ services:
     container_name: fitbitepal-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-fitbitepal}
+      MYSQL_USER: ${MYSQL_USER:-fitbite_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set a separate application database password}
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
       TZ: Asia/Shanghai
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./FitBitePal-Backend/sql:/docker-entrypoint-initdb.d:ro
     networks:
       - fitbitepal-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-123456}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,7 +38,7 @@ services:
     container_name: fitbitepal-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -66,8 +66,8 @@ services:
     environment:
       # 数据库配置
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fitbitepal}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-fitbite_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?Set a separate application database password}
       
       # Redis 配置
       SPRING_DATA_REDIS_HOST: redis
@@ -78,7 +78,9 @@ services:
       SPRING_JPA_SHOW_SQL: "false"
       
       # JWT 配置 (请修改为安全的密钥)
-      JWT_SECRET: ${JWT_SECRET:-FitBitePal-Super-Secret-Key-2024-Production-Min-256-Bits-Change-Me}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a private signing key}
+      FITBITE_ADMIN_EMAIL: ${FITBITE_ADMIN_EMAIL:-}
+      FITBITE_ADMIN_PASSWORD: ${FITBITE_ADMIN_PASSWORD:-}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       
       # 邮件配置
