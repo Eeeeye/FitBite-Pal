@@ -16,6 +16,15 @@ public interface CalorieRecordRepository extends JpaRepository<CalorieRecord, Lo
     List<CalorieRecord> findByUserIdAndRecordDateBetweenOrderByRecordDateAsc(
             Long userId, LocalDate startDate, LocalDate endDate);
     
+    @Query("""
+            select c from CalorieRecord c where c.userId = :userId and c.recordDate between :start and :end
+              and c.id in
+                (select max(r.id) from CalorieRecord r where r.userId = :userId
+                 and r.recordDate between :start and :end group by r.recordDate)
+            order by c.recordDate
+            """)
+    List<CalorieRecord> latestByDay(Long userId, LocalDate start, LocalDate end);
+
     Optional<CalorieRecord> findByUserIdAndRecordDate(Long userId, LocalDate recordDate);
     
     boolean existsByUserIdAndRecordDate(Long userId, LocalDate date);

@@ -1,12 +1,13 @@
 // Replays the authenticated mobile read paths against a loopback FitBite instance.
 import http from 'node:http';
+import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
 
 const [version, scenario] = process.argv.slice(2);
 assert(['before', 'after'].includes(version));
-assert(['home', 'chart-plan'].includes(scenario));
+assert(['home', 'chart-plan', 'progress'].includes(scenario));
 const port = Number(process.env.PERF_PORT || 29690);
 const concurrency = Number(process.env.PERF_CLIENTS || 12);
 const samples = Number(process.env.PERF_SAMPLES || 192);
@@ -52,10 +53,51 @@ for (let i = 0; i < 32; i++) {
   const result = await call(agents[i % concurrency], '/auth/login', { body: { usernameOrEmail, password: process.env.PERF_PASSWORD } });
   accounts.push({ id: result.userId, token: result.token });
 }
+// Compare screen state after applying the same meal-index mapping as the mobile client.
+async function legacyProgress(get, id, end) {
+  const query = 'userId=' + id + '&days=7';
+  const [weightRecords, calorieRecords, statistics, meals] = await Promise.all([
+    get('/data/weight?' + query),
+    get('/data/calories/live?' + query + '&endDate=' + end),
+    get('/data/statistics?' + query),
+    get('/completion/records?userId=' + id + '&itemType=meal&date=' + end)
+  ]);
+  const mealCompletions = Object.fromEntries(meals.map(row => [row.itemIndex, row.completed]));
+  return { weightRecords, calorieRecords, statistics, mealCompletions };
+}
+const progressReference = process.env.PERF_PROGRESS_EXPECTED;
+let expected;
+if (scenario === 'progress') {
+  assert(progressReference, 'Set PERF_PROGRESS_EXPECTED to a disposable reference file');
+  if (process.argv[4] === '--capture') {
+    assert.equal(version, 'before');
+    const perUser = {};
+    for (const account of accounts) {
+      perUser[account.id] = await legacyProgress(path => call(agents[0], path, account), account.id, date(0));
+    }
+    const adjacentDates = {};
+    const member = accounts[0];
+    for (const offset of [-1, 1]) {
+      adjacentDates[date(offset)] = await legacyProgress(path => call(agents[0], path, member), member.id, date(offset));
+    }
+    writeFileSync(progressReference, JSON.stringify({ end: date(0), perUser, adjacentDates }), {flag: 'wx', mode: 0o600});
+    for (const agent of agents) agent.destroy();
+    process.exit(0);
+  }
+  expected = JSON.parse(readFileSync(progressReference, 'utf8'));
+  assert.equal(expected.end, date(0), 'Run the comparison on one local date');
+}
 async function journey(agent, account) {
   const get = path => call(agent, path, account);
   const user = '/users/' + account.id;
   const byUser = 'userId=' + account.id;
+  if (scenario === 'progress') {
+    const data = version === 'before'
+      ? await legacyProgress(get, account.id, expected.end)
+      : await get('/data/progress?' + byUser + '&days=7&endDate=' + expected.end);
+    assert.deepEqual(data, expected.perUser[account.id]);
+    return;
+  }
   const plan = day => get(user + '/training-plan?date=' + date(day));
   const done = (kind, day) => get('/completion/records?' + byUser + '&itemType=' + kind + (day == null ? '' : '&date=' + date(day)));
   const days = Array.from({length: 17}, (_, i) => i - 15);
@@ -114,6 +156,14 @@ async function run(count, record, deadline = null) {
 }
 function metrics() {
   if (!process.env.PERF_MYSQL || !process.env.PERF_MYSQL_CNF) return {};
+  // Progress runs have exclusive use of the MySQL instance throughout measurement.
+  if (scenario === 'progress') {
+    const args = ['--defaults-file=' + process.env.PERF_MYSQL_CNF, '-BN', '-e', "SHOW GLOBAL STATUS LIKE 'Com_select'"];
+    const value = execFileSync(process.env.PERF_MYSQL, args, {encoding: 'utf8'}).trim().split(/\s+/)[1];
+    const selects = Number(value);
+    assert(Number.isSafeInteger(selects));
+    return { selects };
+  }
   const sql = "SELECT coalesce(sum(COUNT_STAR),0) FROM performance_schema.events_statements_summary_by_digest WHERE SCHEMA_NAME='fitbite_perf' AND DIGEST_TEXT LIKE 'SELECT %'";
   const result = execFileSync(process.env.PERF_MYSQL, ['--defaults-file='+process.env.PERF_MYSQL_CNF,'-BN','-e',sql], {encoding:'utf8'});
   return { selects: Number(result.trim()) };
@@ -122,6 +172,13 @@ try {
   // Initialize JWT and MVC code paths before concurrent warm-up on both versions.
   await call(agents[0], "/users/" + accounts[0].id, accounts[0]);
   await journey(agents[0], accounts[0]);
+  if (scenario === 'progress' && version === 'after') {
+    for (const [end, expectedScreen] of Object.entries(expected.adjacentDates)) {
+      const member = accounts[0];
+      const actual = await call(agents[0], '/data/progress?userId=' + member.id + '&days=7&endDate=' + end, member);
+      assert.deepEqual(actual, expectedScreen);
+    }
+  }
   await run(64, false);
   bytes = 0; requests = 0;
   const before = metrics();

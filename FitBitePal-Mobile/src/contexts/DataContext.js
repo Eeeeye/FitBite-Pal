@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   fetchWeightRecords as fetchWeightRecordsApi,
   fetchLiveCalorieRecords,
+  fetchProgress,
   fetchStatistics as fetchStatisticsApi,
   addWeightRecord as addWeightRecordApi,
   addCalorieRecord as addCalorieRecordApi,
@@ -11,7 +12,7 @@ import {
   saveCheckIn as saveCheckInApi,
   getCheckInHistory as getCheckInHistoryApi,
 } from '../api/user';
-import { createScreenReads, applyScreenWrite, localDateKey as getDateKey } from '../utils/screenReads';
+import { createScreenReads, applyScreenWrite, readProgressSnapshot, localDateKey as getDateKey } from '../utils/screenReads';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext();
@@ -61,21 +62,29 @@ export const DataProvider = ({ children }) => {
   });
   const [loadingStats, setLoadingStats] = useState(false);
 
-  const loadCompletionRecords = useCallback(async (date, type) => {
+  const applyCompletionFlags = useCallback((date, type, flags) => {
+    const checked = { ...flags };
+    for (const { data } of pendingWrites.values()) {
+      if (data.date === date && data.itemType === type) checked[data.itemIndex] = data.completed;
+    }
     const setRecords = type === 'exercise' ? setCompletedExercises : setCompletedMeals;
+    setRecords(previous => ({ ...previous, [date]: checked }));
+  }, [pendingWrites]);
+
+  const loadCompletionRecords = useCallback(async (date, type) => {
     try {
       await reads.run(type + ':' + date, () => fetchCompletionRecordsApi(userId, date, type), response => {
         if (!response.success || !Array.isArray(response.data)) return;
-        const checked = Object.fromEntries(response.data.map(item => [item.itemIndex, item.completed]));
-        for (const { data } of pendingWrites.values()) {
-          if (data.date === date && data.itemType === type) checked[data.itemIndex] = data.completed;
-        }
-        setRecords(previous => ({ ...previous, [date]: checked }));
+        applyCompletionFlags(date, type, Object.fromEntries(response.data.map(item => [item.itemIndex, item.completed])));
       });
     } catch (error) {
       console.error('Error loading completion records:', error);
     }
-  }, [reads, pendingWrites, userId]);
+  }, [reads, applyCompletionFlags, userId]);
+
+  const loadProgress = useCallback((days, endDate) =>
+    readProgressSnapshot(reads, endDate, days, () => fetchProgress(userId, days, endDate),
+      flags => applyCompletionFlags(endDate, 'meal', flags)), [reads, applyCompletionFlags, userId]);
 
   const loadCheckInStatus = useCallback(async () => {
     const storageKey = 'checkInDates_' + userId;
@@ -154,7 +163,7 @@ export const DataProvider = ({ children }) => {
     };
     const promise = previous ? previous.promise.then(post, post) : post();
     pendingWrites.set(id, { data, promise, confirmed });
-    reads.invalidate(day);
+    reads.updateField(day, data.itemIndex, data.completed);
     setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [data.itemIndex]: data.completed } }));
     try {
       const response = await promise;
@@ -163,7 +172,7 @@ export const DataProvider = ({ children }) => {
     } catch (error) {
       if (pendingWrites.get(id)?.promise === promise) {
         pendingWrites.delete(id);
-        reads.invalidate(day);
+        reads.updateField(day, data.itemIndex, confirmed.value);
         setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [data.itemIndex]: confirmed.value } }));
         await loadCompletionRecords(data.date, data.itemType);
       }
@@ -171,7 +180,7 @@ export const DataProvider = ({ children }) => {
     } finally {
       if (pendingWrites.get(id)?.promise === promise) {
         pendingWrites.delete(id);
-        reads.invalidate(day);
+        reads.updateField(day, data.itemIndex, data.completed);
       }
     }
   };
@@ -295,6 +304,7 @@ export const DataProvider = ({ children }) => {
     addWeightRecord,
     addCalorieRecord,
     loadWeightRecords,
+    loadProgress,
     loadCalorieRecords,
     loadStatistics,
     

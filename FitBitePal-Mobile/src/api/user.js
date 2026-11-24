@@ -39,6 +39,9 @@ export const fetchCalorieRecords = (userId, days = 7) =>
 export const fetchLiveCalorieRecords = (userId, days, endDate) =>
   apiClient.get('/data/calories/live', { params: { userId, days, endDate } });
 
+export const fetchProgress = (userId, days, endDate) =>
+  apiClient.get('/data/progress', { params: { userId, days, endDate } });
+
 export const fetchStatistics = (userId, days = 7) =>
   apiClient.get(`/data/statistics`, { params: { userId, days } });
 

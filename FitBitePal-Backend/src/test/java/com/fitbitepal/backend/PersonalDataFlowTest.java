@@ -1,8 +1,11 @@
 package com.fitbitepal.backend;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fitbitepal.backend.config.ExerciseInitializer;
 import com.fitbitepal.backend.config.FoodItemInitializer;
+import com.fitbitepal.backend.model.CalorieRecord;
+import com.fitbitepal.backend.model.CheckInRecord;
 import com.fitbitepal.backend.model.CompletionRecord;
 import com.fitbitepal.backend.model.PoseSession;
 import com.fitbitepal.backend.dto.PoseSaveSessionRequest;
@@ -11,6 +14,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import com.fitbitepal.backend.model.User;
+import com.fitbitepal.backend.repository.CalorieRecordRepository;
+import com.fitbitepal.backend.repository.CheckInRecordRepository;
 import com.fitbitepal.backend.repository.CompletionRecordRepository;
 import com.fitbitepal.backend.repository.PoseSessionRepository;
 import com.fitbitepal.backend.repository.UserRepository;
@@ -61,6 +66,8 @@ class PersonalDataFlowTest {
     @Autowired JwtUtil jwt;
 
     @Autowired CompletionRecordRepository completionRows;
+    @Autowired CheckInRecordRepository checkIns;
+    @Autowired CalorieRecordRepository snapshots;
     private User owner;
     private String token;
     private String other;
@@ -90,6 +97,104 @@ class PersonalDataFlowTest {
                 .header("Authorization", other)).andExpect(status().isForbidden());
         mvc.perform(get("/data/calories/live").param("userId", owner.getId().toString())
                 .param("days", "367").header("Authorization", token)).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void progressMatchesAllFourReadsAcrossLocalMidnight() throws Exception {
+        LocalDate today = LocalDate.now();
+        LocalDate first = today.minusDays(2);
+        LocalDate clientDate = today.plusDays(1);
+        owner.setWeight(72.0);
+        owner.setBodyFatRate(20.0);
+        owner.setBmr(1570);
+        owner.setTargetCalories(2000);
+        users.saveAndFlush(owner);
+        addCheckIn(first, 70.0);
+        addCheckIn(today.minusDays(1), null);
+        addSnapshot(first, 200, 400); // Superseded historical snapshot.
+        addSnapshot(first, 1000, 1600);
+        addSnapshot(today, 2000, 1800);
+        addCompletion(owner, first, "meal", 0, false, 100);
+        addCompletion(owner, today, "meal", 0, true, 250);
+        addCompletion(owner, today, "meal", 1, false, 500);
+        addCompletion(owner, clientDate, "meal", 4, false, 600);
+        addCompletion(owner, clientDate, "meal", 5, true, 900);
+        addCompletion(owner, clientDate, "exercise", 0, true, 80);
+        addCompletion(user(), clientDate, "meal", 6, true, 7000);
+
+        String suffix = "?userId=" + owner.getId() + "&days=3";
+        var progress = data("/data/progress" + suffix + "&endDate=" + clientDate, token);
+        assertThat(progress.get("weightRecords")).isEqualTo(data("/data/weight" + suffix, token));
+        assertThat(progress.get("calorieRecords")).isEqualTo(data("/data/calories/live" + suffix + "&endDate=" + clientDate, token));
+        assertThat(progress.get("statistics")).isEqualTo(data("/data/statistics" + suffix, token));
+        var expectedFlags = json.createObjectNode();
+        for (var row : data("/completion/records" + suffix + "&itemType=meal&date=" + clientDate, token)) {
+            expectedFlags.put(row.get("itemIndex").asText(), row.get("completed").asBoolean());
+        }
+        assertThat(progress.get("mealCompletions")).isEqualTo(expectedFlags);
+        assertThat(progress.at("/mealCompletions")).isEqualTo(json.readTree("{\"4\":false,\"5\":true}"));
+        assertThat(progress.at("/weightRecords/2/date").asText()).isEqualTo(today.toString());
+        assertThat(progress.at("/weightRecords/1/weight").asDouble()).isEqualTo(72.0);
+        assertThat(progress.at("/calorieRecords/2/expenditure").asInt()).isEqualTo(1650);
+        assertThat(progress.at("/calorieRecords/2/intake").asInt()).isEqualTo(900);
+        assertThat(progress.at("/statistics/weightChange").asDouble()).isEqualTo(2.0);
+        assertThat(progress.at("/statistics/bodyFatChange").asDouble()).isEqualTo(1.0);
+        assertThat(progress.at("/statistics/avgCalorieBurn").asInt()).isEqualTo(1700);
+        assertThat(progress.at("/statistics/nutritionScore").asInt()).isEqualTo(54);
+        assertThat(progress.at("/statistics/nutritionScoreChange").asInt()).isEqualTo(13);
+
+        var past = data("/data/progress" + suffix + "&endDate=" + first.minusMonths(1), token);
+        assertThat(past.get("statistics")).isEqualTo(progress.get("statistics"));
+        assertThat(past.at("/mealCompletions").size()).isZero();
+        assertThat(past.at("/calorieRecords/2/intake").asInt()).isZero();
+        assertThat(past.at("/calorieRecords/2/baseMetabolism").asInt()).isEqualTo(1570);
+    }
+
+    @Test
+    void progressValidatesItsWindowAndLoadsTheRequestedAccountForAdmins() throws Exception {
+        String path = "/data/progress?userId=" + owner.getId();
+        owner.setWeight(66.5);
+        users.saveAndFlush(owner);
+        var memberReport = data(path, token);
+        assertThat(memberReport.get("calorieRecords").size()).isEqualTo(7);
+        assertThat(memberReport.at("/statistics/currentWeight").asDouble()).isEqualTo(66.5);
+        User admin = user();
+        admin.setRole("ADMIN");
+        admin.setBmr(2910);
+        users.saveAndFlush(admin);
+        assertThat(data(path, token(admin))).isEqualTo(memberReport);
+        mvc.perform(get("/data/progress?userId=9223372036854775807").header("Authorization", token(admin)))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(path).header("Authorization", other)).andExpect(status().isForbidden());
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        for (String invalid : new String[]{"days=0", "days=367", "endDate=not-a-date", "endDate=2026-02-30", "endDate=1000-01-01"}) {
+            mvc.perform(get(path + "&" + invalid).header("Authorization", token)).andExpect(status().isBadRequest());
+        }
+        assertThat(data(path + "&days=1&endDate=1000-01-01", token).get("calorieRecords").size()).isEqualTo(1);
+    }
+
+    private JsonNode data(String path, String bearer) throws Exception {
+        String body = mvc.perform(get(path).header("Authorization", bearer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+                .andReturn().getResponse().getContentAsString();
+        return json.readTree(body).get("data");
+    }
+
+    private void addCheckIn(LocalDate date, Double weight) {
+        var row = new CheckInRecord();
+        row.setCheckInDate(date);
+        row.setWeight(weight);
+        row.setUserId(owner.getId());
+        checkIns.saveAndFlush(row);
+    }
+
+    private void addSnapshot(LocalDate date, int intake, int expenditure) {
+        var row = new CalorieRecord();
+        row.setUserId(owner.getId());
+        row.setRecordDate(date);
+        row.setCalorieIntake(intake);
+        row.setCalorieExpenditure(expenditure);
+        snapshots.saveAndFlush(row);
     }
 
     private void addCompletion(User user, LocalDate date, String type, int index,

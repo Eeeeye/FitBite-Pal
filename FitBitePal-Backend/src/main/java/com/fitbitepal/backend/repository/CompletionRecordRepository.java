@@ -84,6 +84,37 @@ public interface CompletionRecordRepository extends JpaRepository<CompletionReco
             """)
     List<DailyCalories> totalsByDate(Long userId, LocalDate start, LocalDate end);
 
+    // Aggregate only the two requested windows, including unchecked meals for nutrition scores.
+    @Query("""
+            select r.recordDate as date,
+                   coalesce(sum(case when r.itemType = 'meal' and r.completed = true then r.calories else 0 end), 0) as intake,
+                   coalesce(sum(case when r.itemType = 'exercise' and r.completed = true then r.calories else 0 end), 0) as exercise,
+                   sum(case when r.itemType = 'meal' then 1 else 0 end) as mealCount,
+                   sum(case when r.itemType = 'meal' and r.completed = true then 1 else 0 end) as completedMeals
+            from CompletionRecord r
+            where r.userId = :userId and r.itemType in ('meal', 'exercise')
+              and (r.recordDate between :serverStart and :serverEnd or r.recordDate between :clientStart and :clientEnd)
+            group by r.recordDate
+            """)
+    List<DailyActivity> activityByDate(Long userId, LocalDate serverStart, LocalDate serverEnd,
+                                       LocalDate clientStart, LocalDate clientEnd);
+
+    interface DailyActivity extends DailyCalories {
+        long getMealCount();
+        long getCompletedMeals();
+    }
+
+    @Query("""
+            select r.itemIndex as itemIndex, r.completed as completed from CompletionRecord r
+            where r.userId = :userId and r.itemType = 'meal' and r.recordDate = :date
+            """)
+    List<MealFlag> mealFlags(Long userId, LocalDate date);
+
+    interface MealFlag {
+        int getItemIndex();
+        boolean getCompleted();
+    }
+
     interface DailyCalories {
         LocalDate getDate();
         long getIntake();

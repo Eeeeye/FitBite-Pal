@@ -170,3 +170,25 @@ python3 scripts/perf/jwt-startup.py --before "$bench_dir/before.jar" --after "$b
 ```
 
 `profile` 用独立进程准备好已有会员和有效令牌，重启后先检查匿名健康端点，再直接并发读取各自资料。`login` 在重启后并发登录，再用每个成功签发的令牌读取本人资料。两种场景均逐条核对身份。两版轮换先后顺序，每轮重启应用，数据库与 Redis 保持运行。每轮输出包含 HTTP 状态计数、应用就绪耗时、全部请求及成功请求的 P50/P95/P99；不会写出令牌或密码。脚本在候选版有失败时以非零状态退出。
+
+## 进度页七天数据
+
+在第 1 节将基线改为 `f2cede9`，然后执行第 2–3 节初始化专用库及 `home-seed.sql`。下面的额外数据为不同账号设置不同体重、基础代谢和餐次勾选，并保留有空值的历史打卡及同日重复的热量快照。先用旧版生成预期响应，再在同一天运行新旧两版。驱动逐字段核对每一次访问；新版预热前还验证客户端日期比服务器早一天和晚一天的返回值。
+
+```bash
+mysql --defaults-file="$PERF_MYSQL_CNF" --init-command="SET time_zone='+08:00'" fitbite_perf < scripts/perf/progress-seed.sql
+export PERF_PROGRESS_EXPECTED="$bench_dir/progress-reference.json"
+start_app before "$PERF_PORT" fitbite_perf 8
+node scripts/perf/home.mjs before progress --capture
+stop_app "$app_pid"
+
+export PERF_CLIENTS=32 PERF_SECONDS=20
+for variant in before after after before before after after before; do
+  redis-cli -h 127.0.0.1 -p "$REDIS_PORT" -n 8 FLUSHDB >/dev/null
+  start_app "$variant" "$PERF_PORT" fitbite_perf 8
+  node scripts/perf/home.mjs "$variant" progress >> "$bench_dir/progress.jsonl"
+  stop_app "$app_pid"
+done
+```
+
+运行期间让这一组应用独占 MySQL 实例。每轮的 SELECT 数来自 `SHOW GLOBAL STATUS LIKE 'Com_select'` 的增量，包含身份查询和业务查询。基线每次访问并发读取四个接口，新版每次调用一个接口，吞吐均按完整进度页计。[实测报告](../../docs/performance/progress.md)

@@ -467,7 +467,20 @@ Authorization: Bearer <your_jwt_token>
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | userId | long | 用户ID |
-| period | string | 周期（week/month） |
+| days | int | 统计天数，默认 7 天 |
+
+### 6.4 获取进度页
+
+**GET** `/data/progress?userId=123&days=7&endDate=2026-11-25`
+
+`userId` 必填，普通会员可读本人，管理员可指定会员。`days` 默认 7，允许 1 至 366。`endDate` 使用客户端本地日期（YYYY-MM-DD），省略时取服务器当天。
+
+| 响应 `data` 字段 | 含义 |
+|---|---|
+| `weightRecords` | 截至服务器当天的体重图数据，沿用 `/data/weight` 的当前体重补点规则。 |
+| `calorieRecords` | 截至 `endDate` 的每日实时摄入、运动消耗、基础代谢和总消耗，按日期升序补齐窗口。 |
+| `statistics` | 截至服务器当天的体重、体脂、平均消耗、营养评分及目标，与 `/data/statistics` 一致。 |
+| `mealCompletions` | `endDate` 当天的餐次勾选状态，键为项目索引，值为布尔值，无记录时返回空对象。 |
 
 ---
 

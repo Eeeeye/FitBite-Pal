@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import {
   View,
   Text,
@@ -14,19 +14,16 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth, useData, useAppState, useUserProfile } from '../contexts';
+import { progressLoadState } from '../utils/screenReads';
 
 export const ProgressScreen = ({ navigation }) => {
   const { userId } = useAuth();
-  const { 
-    weightRecords,
-    calorieRecords,
-    statsData,
-    loadingStats,
-    loadWeightRecords,
-    loadCalorieRecords,
-    loadStatistics,
-    completedMeals, loadCompletionRecords, getDateKey,
-  } = useData();
+  const { loadProgress, completedMeals, getDateKey } = useData();
+  const [{ status, snapshot, updatedAt }, dispatch] = useReducer(progressLoadState, {
+    status: 'loading', snapshot: null, updatedAt: null,
+  });
+  const [attempt, setAttempt] = useState(0);
+  const { weightRecords = [], calorieRecords = [], statistics: statsData = {} } = snapshot || {};
   const { userProfile } = useUserProfile();
   const { currentLanguage } = useAppState();
 
@@ -42,11 +39,15 @@ export const ProgressScreen = ({ navigation }) => {
 
   const todayKey = getDateKey();
   useFocusEffect(useCallback(() => {
-    loadWeightRecords(7);
-    loadCalorieRecords(7);
-    loadStatistics(7);
-    loadCompletionRecords(todayKey, 'meal');
-  }, [loadWeightRecords, loadCalorieRecords, loadStatistics, loadCompletionRecords, todayKey]));
+    let focused = true;
+    dispatch({ status: 'loading' });
+    loadProgress(7, todayKey)
+      .then(data => {
+        if (focused) dispatch({ status: 'ready', snapshot: data, updatedAt: new Date() });
+      })
+      .catch(() => { if (focused) dispatch({ status: 'error' }); });
+    return () => { focused = false; };
+  }, [loadProgress, todayKey, attempt]));
 
   useEffect(() => {
     if (userId) loadGoals();
@@ -179,7 +180,7 @@ export const ProgressScreen = ({ navigation }) => {
     weightRecords.length > 0 ||
     calorieRecords.some((record) => (record.intake || record.exerciseCalories || record.expenditure || 0) > 0) ||
     Object.keys(completedMeals).length > 0;
-  const updatedDateLabel = new Date().toLocaleDateString(
+  const updatedDateLabel = updatedAt?.toLocaleDateString(
     currentLanguage === 'zh' ? 'zh-CN' : 'en-US',
     { year: 'numeric', month: '2-digit', day: '2-digit' }
   );
@@ -211,12 +212,39 @@ export const ProgressScreen = ({ navigation }) => {
           <Text style={styles.cardTitle}>
             {currentLanguage === 'zh' ? '数据分析' : 'Data analysis'}
           </Text>
-          <Text style={styles.statsDate}>
-            {currentLanguage === 'zh' ? `更新于: ${updatedDateLabel}` : `Updated on: ${updatedDateLabel}`}
-          </Text>
+          {updatedDateLabel && (
+            <Text style={styles.statsDate}>
+              {currentLanguage === 'zh' ? `更新于: ${updatedDateLabel}` : `Updated on: ${updatedDateLabel}`}
+            </Text>
+          )}
         </View>
         <View style={styles.divider} />
 
+        {status === 'error' && (
+          <View style={styles.emptyStateCard}>
+            <Text style={styles.emptyStateTitle} accessibilityRole="alert">
+              {currentLanguage === 'zh' ? '进度数据加载失败' : 'Could not load progress'}
+            </Text>
+            {snapshot && (
+              <Text style={styles.emptyStateText}>
+                {currentLanguage === 'zh' ? '当前显示上次加载的数据。' : 'Showing your last loaded data.'}
+              </Text>
+            )}
+            <TouchableOpacity style={styles.retryButton} accessibilityRole="button"
+              onPress={() => setAttempt(previous => previous + 1)}>
+              <Text style={styles.retryText}>{currentLanguage === 'zh' ? '重试' : 'Retry'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {status === 'loading' && !snapshot && (
+          <View style={styles.statsLoadingContainer}>
+            <ActivityIndicator size="large" color="#d0fd3e" />
+            <Text style={styles.loadingText}>
+              {currentLanguage === 'zh' ? '正在加载进度数据…' : 'Loading progress…'}
+            </Text>
+          </View>
+        )}
+        {snapshot && <>
         {!hasRecordedProgress && (
           <View style={styles.emptyStateCard}>
             <Text style={styles.emptyStateTitle}>
@@ -231,12 +259,6 @@ export const ProgressScreen = ({ navigation }) => {
         )}
 
         {/* Stats Grid */}
-        {loadingStats ? (
-          <View style={styles.statsLoadingContainer}>
-            <ActivityIndicator size="large" color="#d0fd3e" />
-            <Text style={styles.loadingText}>加载统计数据...</Text>
-          </View>
-        ) : (
           <View style={styles.statsGrid}>
             {/* Current Weight */}
             <View style={styles.statCard}>
@@ -347,7 +369,7 @@ export const ProgressScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
-        )}
+
 
         {/* Weight Trend Chart */}
         <View style={styles.chartCard}>
@@ -780,6 +802,7 @@ export const ProgressScreen = ({ navigation }) => {
           </View>
         </View>
 
+        </>}
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -935,6 +958,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+  retryButton: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    marginTop: 4,
+  },
+  retryText: { color: '#d0fd3e', fontWeight: '700' },
   statsLoadingContainer: {
     padding: 40,
     alignItems: 'center',

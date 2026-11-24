@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createScreenReads, localDateKey, readTrainingDay, applyScreenWrite } = require('../src/utils/screenReads');
+const { progressLoadState, createScreenReads, localDateKey, readTrainingDay, applyScreenWrite, readProgressSnapshot } = require('../src/utils/screenReads');
 
 function deferred() {
   let resolve;
@@ -87,4 +87,90 @@ test('a late diet response cannot revert an addition or deletion and settled wri
     await applyScreenWrite(reads, key, () => apply([]), reload);
     assert.equal(reloads, 1);
   }
+});
+
+const progressDate = '2026-11-25';
+const progressResponse = {
+  success: true,
+  data: {
+    weightRecords: [{ date: progressDate, weight: 72 }],
+    calorieRecords: [{ date: progressDate, intake: 650 }],
+    statistics: { currentWeight: 72, nutritionScore: 70 },
+    mealCompletions: { 0: true, 1: false, 2: true },
+  },
+};
+
+test('one progress fetch supplies both charts, statistics and end-date meal flags even with overlapping focus', async () => {
+  const reads = createScreenReads();
+  const result = deferred();
+  let calls = 0;
+  let meals;
+  const load = () => readProgressSnapshot(reads, progressDate, 7, () => {
+    calls++;
+    return result.promise;
+  }, flags => { meals = flags; });
+  const first = load();
+  const second = load();
+  result.resolve(progressResponse);
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(calls, 1);
+  assert.equal(a, b);
+  const { mealCompletions, ...charts } = progressResponse.data;
+  assert.deepEqual(a, charts);
+  assert.deepEqual(meals, mealCompletions);
+});
+
+test('toggles and rollbacks survive a late progress snapshot while untouched meal flags still load', async () => {
+  const reads = createScreenReads();
+  const old = deferred();
+  let meals;
+  const request = readProgressSnapshot(reads, progressDate, 7, () => old.promise, flags => { meals = flags; });
+  await Promise.resolve();
+  const key = 'meal:' + progressDate;
+  reads.updateField(key, 0, false);
+  reads.updateField(key, 1, true);
+  reads.updateField(key, 1, false);  // failed write rolled back
+  old.resolve(progressResponse);
+  await request;
+  assert.deepEqual(meals, { 0: false, 1: false, 2: true });
+});
+
+test('a newer meal read wins over a late progress response and leaving one account does not affect another', async () => {
+  const reads = createScreenReads();
+  const old = deferred();
+  let meals;
+  let otherMeals;
+  const first = readProgressSnapshot(reads, progressDate, 7, () => old.promise, flags => { meals = flags; });
+  await Promise.resolve();
+  await reads.run('meal:' + progressDate, () => ({ 4: true }), flags => { meals = flags; });
+  await readProgressSnapshot(createScreenReads(), progressDate, 7,
+    () => ({ ...progressResponse, data: { ...progressResponse.data, mealCompletions: { 8: true } } }),
+    flags => { otherMeals = flags; });
+  old.resolve(progressResponse);
+  await first;
+  assert.deepEqual(meals, { 4: true });
+  assert.deepEqual(otherMeals, { 8: true });
+});
+
+test('an incomplete progress response can be retried without publishing empty meal flags', async () => {
+  const reads = createScreenReads();
+  let meals = { 4: true };
+  const load = response => readProgressSnapshot(reads, progressDate, 7, () => response, flags => { meals = flags; });
+  await assert.rejects(load({ success: true, data: {} }), /Incomplete/);
+  assert.deepEqual(meals, { 4: true });
+  await load(progressResponse);
+  assert.deepEqual(meals, progressResponse.data.mealCompletions);
+});
+
+test('progress shows initial failure without sample values and retains the last successful snapshot on a refresh failure', () => {
+  const initial = { status: 'loading', snapshot: null, updatedAt: null };
+  const failed = progressLoadState(initial, { status: 'error' });
+  assert.deepEqual(failed, { ...initial, status: 'error' });
+  const retrying = progressLoadState(failed, { status: 'loading' });
+  const ready = progressLoadState(retrying, { status: 'ready', snapshot: progressResponse.data, updatedAt: new Date() });
+  const refreshing = progressLoadState(ready, { status: 'loading' });
+  const refreshFailed = progressLoadState(refreshing, { status: 'error' });
+  assert.equal(refreshFailed.snapshot, ready.snapshot);
+  assert.equal(refreshFailed.updatedAt, ready.updatedAt);
+  assert.equal(refreshFailed.status, 'error');
 });
