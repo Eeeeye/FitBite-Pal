@@ -31,22 +31,7 @@ export const RegisterScreen = ({ navigation }) => {
 
     const result = await register(username, email, password);
     
-    if (result.success) {
-      Alert.alert(
-        currentLanguage === 'zh' ? '成功' : 'Success',
-        currentLanguage === 'zh' ? '注册成功！' : 'Registration successful!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // ✨ 注册成功后导航到Gender页面开始新手引导（与App1.js一致）
-
-              navigation.navigate('Gender');
-            }
-          }
-        ]
-      );
-    } else {
+    if (!result.success) {
       Alert.alert(
         currentLanguage === 'zh' ? '注册失败' : 'Registration Failed',
         result.message || (currentLanguage === 'zh' ? '请检查您的信息' : 'Please check your information')

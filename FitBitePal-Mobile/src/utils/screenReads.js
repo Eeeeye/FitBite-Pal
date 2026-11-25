@@ -1,3 +1,5 @@
+const { applyFlagChanges } = require('./mealIdentity');
+
 function localDateKey(date = new Date()) {
   const twoDigits = number => String(number).padStart(2, '0');
   return `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`;
@@ -34,11 +36,11 @@ function createScreenReads() {
       else latest.delete(key);
       pending.delete(key);
     },
-    run(key, fetch, apply) {
+    run(key, fetch, apply, changes) {
       if (pending.has(key)) return pending.get(key);
-      const publish = claim(key);
+      const publish = claim(key, changes);
       const request = Promise.resolve().then(fetch).then(result => {
-        publish(() => apply?.(result));
+        publish(overrides => apply?.(result, overrides));
         return result;
       }).finally(() => {
         publish();
@@ -68,11 +70,14 @@ function readProgressSnapshot(reads, endDate, days, fetch, applyMealFlags) {
     try {
       const response = await fetch();
       if (!response.success || !response.data) throw new Error(response.message || 'Progress unavailable');
-      const { weightRecords, calorieRecords, statistics, mealCompletions } = response.data;
-      if (!Array.isArray(weightRecords) || !Array.isArray(calorieRecords) || !statistics || !mealCompletions) {
+      const { weightRecords, calorieRecords, statistics, mealCompletionsByKey, mealCompletions } = response.data;
+      if (!Array.isArray(weightRecords) || !Array.isArray(calorieRecords) || !statistics || (!mealCompletionsByKey && !mealCompletions)) {
         throw new Error('Incomplete progress response');
       }
-      publishMeals(changes => applyMealFlags({ ...mealCompletions, ...changes }));
+      // Legacy index-only responses can supply a count, but cannot identify a card.
+      const flags = mealCompletionsByKey ?? Object.fromEntries(
+        Object.entries(mealCompletions).map(([index, value]) => ['legacy-index:' + index, value]));
+      publishMeals(changes => applyMealFlags(applyFlagChanges(flags, changes)));
       return { weightRecords, calorieRecords, statistics };
     } finally {
       publishMeals();

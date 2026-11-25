@@ -28,17 +28,7 @@ export const LoginScreen = ({ navigation }) => {
 
     const result = await login(identifier, password);
     
-    if (result.success) {
-      // ✨ 关键新增：检查是否需要Onboarding（与App1.js完全一致）
-      if (result.needsOnboarding) {
-
-        navigation.replace('Gender');
-      } else {
-
-        Alert.alert('欢迎回来', '登录成功！');
-        // 导航由路由守卫自动处理
-      }
-    } else {
+    if (!result.success) {
       Alert.alert(t('loginFailed'), result.message || t('pleaseCheckCredentials'));
     }
   };

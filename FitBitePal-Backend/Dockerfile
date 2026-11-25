@@ -37,7 +37,7 @@ COPY --from=builder /app/target/*.jar app.jar
 COPY --from=builder /app/target/classes/static ./static
 
 # 设置文件权限
-RUN chown -R fitbitepal:fitbitepal /app
+RUN mkdir -p /var/log/fitbitepal && chown -R fitbitepal:fitbitepal /app /var/log/fitbitepal
 
 # 切换到非 root 用户
 USER fitbitepal
@@ -47,11 +47,12 @@ EXPOSE 8080
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/api/actuator/health || exit 1
+  CMD wget --quiet --tries=1 --spider http://localhost:8080/api/actuator/health/readiness || exit 1
 
 # JVM 优化参数
+ENV SPRING_PROFILES_ACTIVE=prod
 ENV JAVA_OPTS="-Xms512m -Xmx1024m -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError"
 
 # 启动命令
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
 

@@ -120,9 +120,11 @@ public class UserService {
         
         // ✅ 同步更新今天的打卡记录体重（保持 User 表和打卡表今天的数据一致）
         LocalDate today = LocalDate.now();
+        Double currentBodyFat = user.getBodyFatRate();
         checkInRecordRepository.findByUserIdAndCheckInDate(userId, today).ifPresent(record -> {
             record.setWeight(request.getWeight());
             record.setHeight(request.getHeight());
+            record.setBodyFatRate(currentBodyFat);
         });
 
         dynamicPlanService.ensurePlan(user, today);
@@ -192,7 +194,8 @@ public class UserService {
         if (inRollingWindow(date)) {
             return dynamicDietPlanService.generateDietPlanForDate(userId, date);
         }
-        return dietPlanRepository.findByUserIdAndPlanDateOrderByMealTimeAsc(userId, date);
+        return dietPlanRepository.findByUserIdAndPlanDateOrderByMealTimeAsc(userId, date).stream()
+                .filter(plan -> !plan.isHidden()).toList();
     }
 
     private boolean inRollingWindow(LocalDate date) {

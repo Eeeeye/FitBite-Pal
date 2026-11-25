@@ -57,10 +57,7 @@ public class CheckInService {
         if (today.equals(request.date()) && (request.height() != null || request.weight() != null)) {
             if (request.height() != null) user.setHeight(request.height());
             if (request.weight() != null) user.setWeight(request.weight());
-            if (user.getHeight() != null && user.getWeight() != null && user.getAge() != null
-                    && user.getGender() != null && user.getActivityLevel() != null && user.getGoal() != null) {
-                metrics.calculateHealthMetrics(user);
-            }
+            if (metrics.calculateIfComplete(user)) record.setBodyFatRate(user.getBodyFatRate());
             profiles.evictAllUserCaches(userId);
         }
         return new Result(true, "Check-in saved successfully", false, records.save(record));

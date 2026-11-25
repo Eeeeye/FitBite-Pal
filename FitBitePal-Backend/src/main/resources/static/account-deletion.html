@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>注销 FitBite 账号 · Delete your FitBite account</title>
+  <style>
+    * { box-sizing: border-box; } body { margin: 0; background: #181a18; color: #f4f6f2; font: 16px/1.6 system-ui,sans-serif; }
+    main { margin: 3rem auto; padding: 0 1.5rem; max-width: 37rem; } h1 { line-height: 1.2; } p { color: #d6dbd2; }
+    input:not([type=checkbox]) { width: 100%; margin: .3rem 0 .8rem; padding: .7rem; border-radius: .4rem; border: 1px solid #858c83; font-size: 1rem; }
+    label { display:block; } button { padding: .65rem 1rem; color: #162000; background: #d0fd3e; font: inherit; border: 0; border-radius: .4rem; cursor:pointer; margin: .7rem .5rem 0 0; }
+    button.secondary { background: #d5d9d2; } button:disabled { opacity:.6; } #status { font-weight:600; } [hidden] {display:none}
+  </style>
+  <script src="./account-deletion.js" defer></script>
+</head>
+<body><main>
+  <button type="button" id="language" class="secondary">English</button>
+  <h1 id="title">注销 FitBite 账号</h1>
+  <p id="scope">确认后，FitBite 会立即删除服务中的账号、个人资料、饮食与训练计划和记录、打卡、热量及姿态会话。操作无法撤销。</p>
+  <p id="retention">旧计划缓存最多保留 12 小时，到期自动清除。其他设备上的本机聊天可在注销前通过「设置 → 安全与隐私」清除。</p>
+  <p id="instructions">请输入要注销的账号和当前密码，核对后确认。</p>
+  <form id="account-form" method="post" autocomplete="off">
+    <label><span id="identity-label">用户名或邮箱</span><input id="identity" autocomplete="username" required></label>
+    <label><span id="password-label">当前密码</span><input id="password" type="password" autocomplete="current-password" required></label>
+    <label><input id="understand" type="checkbox" required> <span id="consent">我了解此账号及上述记录将被永久删除。</span></label>
+    <button id="submit" type="submit">永久注销此账号</button>
+    <button id="cancel" type="button" class="secondary">取消</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+</main></body>
+</html>

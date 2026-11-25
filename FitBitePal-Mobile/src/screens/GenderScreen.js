@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useAppState } from '../contexts';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,10 +6,8 @@ import { OnboardingProgress } from '../components/OnboardingProgress';
 
 export const GenderScreen = ({ navigation }) => {
   const { currentLanguage } = useAppState();
-  const { userId } = useAuth(); // 🔍 获取当前userId用于调试
+  const { logout } = useAuth();
   const [selectedGender, setSelectedGender] = useState('');
-
-  // userId 变化监听（已移除日志）
 
   const handleNext = () => {
     if (selectedGender) {
@@ -68,7 +66,7 @@ export const GenderScreen = ({ navigation }) => {
 
       <View style={styles.bottomContainer}>
         <View style={styles.screenBottomButtons}>
-          <TouchableOpacity style={styles.screenBackButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={styles.screenBackButton} onPress={() => logout()} accessibilityLabel={currentLanguage === 'zh' ? '退出登录' : 'Sign out'}>
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
           <TouchableOpacity 
@@ -86,6 +84,10 @@ export const GenderScreen = ({ navigation }) => {
             />
           </TouchableOpacity>
         </View>
+        <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('OnboardingPrivacy')}
+          style={{ alignSelf: 'center', padding: 12 }}>
+          <Text style={{ color: '#d0fd3e' }}>{currentLanguage === 'zh' ? '安全与隐私' : 'Security & Privacy'}</Text>
+        </TouchableOpacity>
         <OnboardingProgress currentStep={1} totalSteps={7} />
       </View>
     </View>

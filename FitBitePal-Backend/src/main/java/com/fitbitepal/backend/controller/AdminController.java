@@ -3,6 +3,7 @@ package com.fitbitepal.backend.controller;
 import com.fitbitepal.backend.model.*;
 import com.fitbitepal.backend.repository.*;
 import com.fitbitepal.backend.service.UserService;
+import com.fitbitepal.backend.service.AccountDeletionService;
 import com.fitbitepal.backend.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +12,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.transaction.annotation.Transactional;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.LocalDate;
@@ -22,9 +22,7 @@ import java.util.*;
 @RequiredArgsConstructor
 @Slf4j
 public class AdminController {
-    private final TrainingRecordRepository trainingRecords;
-    private final DietRecordRepository dietRecords;
-    private final PoseSessionRepository poseSessions;
+    private final AccountDeletionService accounts;
     private final UserRepository userRepository;
     private final TrainingPlanRepository trainingPlanRepository;
     private final DietPlanRepository dietPlanRepository;
@@ -86,7 +84,7 @@ public class AdminController {
         // 获取用户的饮食计划
         List<DietPlan> dietPlans = dietPlanRepository
                 .findByUserIdAndPlanDateOrderByMealTimeAsc(userId, LocalDate.now());
-        detail.put("todayDietPlan", dietPlans);
+        detail.put("todayDietPlan", dietPlans.stream().filter(plan -> !plan.isHidden()).toList());
         
         // 获取打卡记录
         List<CheckInRecord> checkIns = checkInRecordRepository.findTop10ByUserIdOrderByCheckInDateDesc(userId);
@@ -160,29 +158,8 @@ public class AdminController {
      * 删除用户
      */
     @DeleteMapping("/users/{userId}")
-    @Transactional
     public ResponseEntity<ApiResponse<String>> deleteUser(@PathVariable Long userId) {
-        if (userRepository.findForUpdate(userId).isEmpty()) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("User not found"));
-        }
-        
-        // ✅ 先清除用户所有缓存
-        userService.evictAllUserCaches(userId);
-        
-        // 删除所有关联数据
-        trainingPlanRepository.deleteByUserId(userId);
-        dietPlanRepository.deleteByUserId(userId);
-        completionRecordRepository.deleteByUserId(userId);
-        checkInRecordRepository.deleteByUserId(userId);
-        calorieRecordRepository.deleteByUserId(userId);
-        trainingRecords.deleteByUserId(userId);
-        dietRecords.deleteByUserId(userId);
-        poseSessions.deleteByUserId(userId);
-        
-        // 删除用户
-        userRepository.deleteById(userId);
-        
-        log.info("用户 {} 及所有关联数据已删除", userId);
+        accounts.deleteByAdmin(userId);
         return ResponseEntity.ok(ApiResponse.success("User deleted successfully"));
     }
 }

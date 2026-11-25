@@ -40,13 +40,13 @@ public class EmailService {
         return RedisScript.of(new ClassPathResource("redis/reset-" + name + ".lua"), Long.class);
     }
 
-    public void sendVerificationCode(String address) {
+    public void sendVerificationCode(Long ownerId, String address) {
         String code = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
         String issueId = UUID.randomUUID().toString();
         List<String> key = key(address);
         long ttl = Duration.ofMinutes(Math.max(1, codeTtlMinutes)).toSeconds();
         Long issued = redis.execute(ISSUE, key, code, issueId, Long.toString(ttl),
-                Integer.toString(RESEND_SECONDS));
+                Integer.toString(RESEND_SECONDS), ownerId.toString());
         if (!Long.valueOf(1).equals(issued)) {
             return;
         }
@@ -64,17 +64,21 @@ public class EmailService {
         }
     }
 
-    public boolean verifyCode(String address, String code) {
-        return check(address, code, false);
+    public boolean verifyCode(Long ownerId, String address, String code) {
+        return check(ownerId, address, code, false);
     }
 
-    public boolean consumeCode(String address, String code) {
-        return check(address, code, true);
+    public boolean consumeCode(Long ownerId, String address, String code) {
+        return check(ownerId, address, code, true);
     }
 
-    private boolean check(String address, String code, boolean consume) {
+    private boolean check(Long ownerId, String address, String code, boolean consume) {
         return Long.valueOf(1).equals(redis.execute(CHECK, key(address), code,
-                consume ? "1" : "0", Integer.toString(ATTEMPT_LIMIT)));
+                consume ? "1" : "0", Integer.toString(ATTEMPT_LIMIT), ownerId.toString()));
+    }
+
+    public void revoke(String address) {
+        redis.delete(key(address).get(0));
     }
 
     private List<String> key(String address) {

@@ -1,0 +1,161 @@
+name: Rehearse FitBite release
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/release/**'
+      - 'ops/monitoring/**'
+      - 'compose.monitoring.yml'
+      - 'FitBitePal-Backend/pom.xml'
+      - 'FitBitePal-Backend/src/main/**'
+      - 'FitBitePal-Mobile/**'
+      - '.github/workflows/release-rehearsal.yml'
+permissions:
+  contents: read
+jobs:
+  rehearse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ephemeral-ci
+          MYSQL_ROOT_HOST: '%'
+        ports: ['127.0.0.1:3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1" --health-interval=5s
+          --health-timeout=4s --health-retries=30
+    env:
+      PREVIOUS: 14581c91fdf70d00b3df0e35123be0c59cfd60a7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build the original V9 artifact and this candidate
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/previous"
+          git archive "$PREVIOUS" FitBitePal-Backend | tar -x -C "$RUNNER_TEMP/previous"
+          mvn -B -ntp -f "$RUNNER_TEMP/previous/FitBitePal-Backend/pom.xml" -Dmaven.test.skip=true package
+          mvn -B -ntp -f FitBitePal-Backend/pom.xml -Dmaven.test.skip=true package
+      - name: Audit the assembled backend dependencies
+        run: python3 scripts/release/audit-backend-jar.py FitBitePal-Backend/target/backend-1.0.0.jar > "$RUNNER_TEMP/backend-audit.json"
+      - name: Prepare verified probe binaries and isolated databases
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y redis-server mysql-client
+          tools="$RUNNER_TEMP/monitor"
+          mkdir -p "$tools"
+          cd "$tools"
+          for pair in prometheus:3.5.1 blackbox_exporter:0.27.0 alertmanager:0.28.1; do
+            repo="${pair%:*}"
+            version="${pair#*:}"
+            stem="$repo-$version.linux-amd64"
+            base="https://github.com/prometheus/$repo/releases/download/v$version"
+            curl -fsSL --retry 3 "$base/$stem.tar.gz" -o "$stem.tar.gz"
+            curl -fsSL --retry 3 "$base/sha256sums.txt" -o hashes
+            awk -v file="$stem.tar.gz" '$2 == file {print}' hashes | sha256sum -c -
+            tar -xzf "$stem.tar.gz" "$stem/$repo" --strip-components=1
+            if [ "$repo" = prometheus ]; then tar -xzf "$stem.tar.gz" "$stem/promtool" --strip-components=1; fi
+          done
+          curl -fsSL --retry 3 https://github.com/axllent/mailpit/releases/download/v1.27.4/mailpit-linux-amd64.tar.gz -o mailpit.tgz
+          echo '42d7f693cd01d60a54fe97974b6d701bddecfac1d5db3d7953160fbe009259f9  mailpit.tgz' | sha256sum -c -
+          tar -xzf mailpit.tgz mailpit
+          umask 077
+          printf '[client]\nprotocol=tcp\nhost=127.0.0.1\nport=3306\nuser=root\npassword=ephemeral-ci\n' > "$RUNNER_TEMP/client.cnf"
+          mysql --defaults-file="$RUNNER_TEMP/client.cnf" -e 'CREATE DATABASE source_rc; CREATE DATABASE previous_rc; CREATE DATABASE restored_rc;'
+      - name: Roll out, exercise alerts, roll back and restore
+        run: |
+          set -euo pipefail
+          old="$RUNNER_TEMP/previous/FitBitePal-Backend"
+          python3 scripts/release/rehearse.py \
+            --previous-jar "$old/target/backend-1.0.0.jar" --candidate-jar FitBitePal-Backend/target/backend-1.0.0.jar \
+            --previous-schema "$old/src/main/resources/db/baseline/mysql8.sql" \
+            --migration FitBitePal-Backend/src/main/resources/db/migration/V10__stable_meal_completion_keys.sql \
+            --migration FitBitePal-Backend/src/main/resources/db/migration/V11__goal_measurement_baselines.sql \
+            --mysql-bin /usr/bin --client-cnf "$RUNNER_TEMP/client.cnf" \
+            --source-schema source_rc --rollback-schema previous_rc --restore-schema restored_rc \
+            --monitor-bin "$RUNNER_TEMP/monitor" --mailpit "$RUNNER_TEMP/monitor/mailpit" \
+            --redis-server /usr/bin/redis-server --output "$RUNNER_TEMP/release-result"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: FitBitePal-Mobile/package-lock.json
+      - name: Export the local Web candidate
+        working-directory: FitBitePal-Mobile
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:29760/api
+          EXPO_NO_DOTENV: '1'
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_OFFLINE: '1'
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          node node_modules/expo/bin/cli export --platform web --clear --max-workers 2 --output-dir "$RUNNER_TEMP/web-candidate"
+      - name: Install the smoke test browser
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/web-browser" --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.56.1
+          node "$RUNNER_TEMP/web-browser/node_modules/playwright-core/cli.js" install --with-deps --only-shell chromium
+      - name: Verify six Web member flows against the candidate JAR
+        env:
+          SPRING_PROFILES_ACTIVE: prod,localmail
+          SPRING_DATASOURCE_URL: 'jdbc:mysql://127.0.0.1:3306/web_smoke_rc?useSSL=false&allowPublicKeyRetrieval=true'
+          SPRING_DATASOURCE_USERNAME: web_smoke
+          SERVER_ADDRESS: 127.0.0.1
+          SERVER_PORT: '29760'
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: '29762'
+          CORS_ALLOWED_ORIGINS: http://127.0.0.1:29761
+          FITBITE_SMOKE_API: http://127.0.0.1:29760/api
+          FITBITE_SMOKE_WEB: http://127.0.0.1:29761
+          MAIL_USERNAME: ''
+          MAIL_PASSWORD: ''
+          ARK_API_KEY: ''
+          ARK_ENABLED: 'false'
+          AI_ENABLED: 'false'
+        run: |
+          set -euo pipefail
+          export LOG_PATH="$RUNNER_TEMP/web-api-logs"
+          export PLAYWRIGHT_CORE="$RUNNER_TEMP/web-browser/node_modules/playwright-core"
+          JWT_SECRET=$(openssl rand -hex 48)
+          SPRING_DATASOURCE_PASSWORD=$(openssl rand -hex 24)
+          export JWT_SECRET SPRING_DATASOURCE_PASSWORD
+          mysql --defaults-file="$RUNNER_TEMP/client.cnf" <<SQL
+          CREATE DATABASE web_smoke_rc;
+          CREATE USER 'web_smoke'@'%' IDENTIFIED BY '${SPRING_DATASOURCE_PASSWORD}';
+          GRANT SELECT, INSERT, UPDATE, DELETE ON web_smoke_rc.* TO 'web_smoke'@'%';
+          SQL
+          mysql --defaults-file="$RUNNER_TEMP/client.cnf" web_smoke_rc < FitBitePal-Backend/src/main/resources/db/baseline/mysql8.sql
+          mkdir -p "$LOG_PATH"
+          pids=()
+          cleanup() {
+            for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
+            wait || true
+          }
+          trap cleanup EXIT
+          redis-server --bind "$REDIS_HOST" --port "$REDIS_PORT" --dir "$RUNNER_TEMP" --save '' --appendonly no > "$RUNNER_TEMP/web-redis.log" 2>&1 &
+          pids+=("$!")
+          java -Xmx384m -jar FitBitePal-Backend/target/backend-1.0.0.jar > "$RUNNER_TEMP/web-api.log" 2>&1 &
+          pids+=("$!")
+          python3 -m http.server 29761 --bind 127.0.0.1 --directory "$RUNNER_TEMP/web-candidate" > "$RUNNER_TEMP/web-server.log" 2>&1 &
+          pids+=("$!")
+          curl --silent --show-error --fail --retry 35 --retry-connrefused --retry-delay 2 "$FITBITE_SMOKE_API/actuator/health/readiness"
+          curl --silent --show-error --fail --retry 5 --retry-connrefused --output /dev/null "$FITBITE_SMOKE_WEB/"
+          node scripts/release/web-smoke.cjs | tee "$RUNNER_TEMP/web-smoke.log"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: release-rehearsal-result
+          path: |
+            ${{ runner.temp }}/release-result/result.json
+            ${{ runner.temp }}/backend-audit.json
+            ${{ runner.temp }}/web-smoke.log

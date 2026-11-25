@@ -12,12 +12,13 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { confirmLocalAction } from '../utils/confirmLocalAction';
 import { useChat } from '../hooks';
 import { selectImageSource } from '../../services/cameraService';
 import { useAppState } from '../contexts';
 
 export const ChatScreen = ({ navigation }) => {
-  const { messages, sendMessage, sendingMessage, clearChat } = useChat();
+  const { messages, sendMessage, sendingMessage, clearChat, status, retryHistory } = useChat();
   const { currentLanguage } = useAppState();
   const [inputText, setInputText] = useState('');
   const [attachedImage, setAttachedImage] = useState(null);
@@ -28,8 +29,9 @@ export const ChatScreen = ({ navigation }) => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
 
+  const canSend = !sendingMessage && (status === 'ready' || status === 'send-error');
   const handleSend = async () => {
-    if (!inputText.trim() && !attachedImage) return;
+    if (!canSend || (!inputText.trim() && !attachedImage)) return;
 
     // ✨ 保存消息内容（在清空前）
     const messageText = inputText;
@@ -63,7 +65,8 @@ export const ChatScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.aiChatHeader}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={currentLanguage === 'zh' ? '返回' : 'Back'}
+          onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.aiChatTitle}>
@@ -72,26 +75,23 @@ export const ChatScreen = ({ navigation }) => {
         {/* ✨ 清空聊天记录按钮 */}
         <TouchableOpacity 
           onPress={() => {
-            Alert.alert(
-              currentLanguage === 'zh' ? '清空聊天' : 'Clear Chat',
-              currentLanguage === 'zh' 
-                ? '确定要清空所有聊天记录吗？' 
-                : 'Are you sure you want to clear all chat history?',
-              [
-                { text: currentLanguage === 'zh' ? '取消' : 'Cancel', style: 'cancel' },
-                {
-                  text: currentLanguage === 'zh' ? '清空' : 'Clear',
-                  style: 'destructive',
-                  onPress: () => clearChat()
-                }
-              ]
-            );
+            const zh = currentLanguage === 'zh';
+            confirmLocalAction(zh ? '清空聊天' : 'Clear chat',
+              zh ? '永久清除此账号在本机的聊天？' : 'Permanently clear your chat on this device?',
+              zh ? '取消' : 'Cancel', zh ? '清除' : 'Clear', () => { clearChat().catch(() => {}); });
           }}
         >
           <Text style={styles.clearButton}>🗑️</Text>
         </TouchableOpacity>
       </View>
 
+      {status === 'read-error' && (
+        <TouchableOpacity accessibilityRole="button" onPress={retryHistory}>
+          <Text style={styles.chatNotice}>{currentLanguage === 'zh' ? '无法读取或清除聊天记录，点此重试。' : 'Unable to read or clear chat history. Tap to retry.'}</Text>
+        </TouchableOpacity>
+      )}
+      {status === 'send-error' && <Text style={styles.chatNotice}>{currentLanguage === 'zh'
+        ? '消息未完成，请重试。' : 'Message could not be completed. Please try again.'}</Text>}
       {/* Messages */}
       <ScrollView 
         ref={scrollViewRef}
@@ -190,8 +190,9 @@ export const ChatScreen = ({ navigation }) => {
         {/* Send Button */}
         <TouchableOpacity 
           style={[styles.aiSendButton, (!inputText.trim() && !attachedImage) && styles.aiSendButtonDisabled]}
+          accessibilityRole="button" accessibilityLabel={currentLanguage === 'zh' ? '发送消息' : 'Send message'}
           onPress={handleSend}
-          disabled={!inputText.trim() && !attachedImage}
+          disabled={!canSend || (!inputText.trim() && !attachedImage)}
         >
           <Image
             source={require('../../assets/images/f9c2b6e3431fd609930d93a7eb32c77b.png')}
@@ -209,6 +210,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1a1a1a',
   },
+  chatNotice: { color: '#d0fd3e', padding: 12 },
   aiChatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

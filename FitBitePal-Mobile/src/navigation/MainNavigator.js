@@ -4,6 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image, StyleSheet } from 'react-native';
 import { useAppState, useAuth } from '../contexts';
 import { UserProfileProvider } from '../contexts/UserProfileContext';
+import { ChatProvider } from '../hooks/useChat';
+import { PrivacyScreen } from '../screens/PrivacyScreen';
 import { DataProvider } from '../contexts/DataContext';
 import {
   HomeScreen,
@@ -134,6 +136,7 @@ const MainStack = () => {
       <Stack.Screen name="PoseHistoryDetail" component={PoseHistoryDetailScreen} />
       <Stack.Screen name="FoodRecognition" component={FoodRecognitionScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="Privacy" component={PrivacyScreen} />
       <Stack.Screen name="CheckIn" component={CheckInScreen} />
       <Stack.Screen name="Summary" component={SummaryScreen} />
       <Stack.Screen name="AdjustPlan" component={AdjustPlanScreen} />
@@ -146,7 +149,7 @@ export const MainNavigator = () => {
   return (
     <UserProfileProvider key={userId}>
       <DataProvider>
-        <MainStack />
+        <ChatProvider><MainStack /></ChatProvider>
       </DataProvider>
     </UserProfileProvider>
   );

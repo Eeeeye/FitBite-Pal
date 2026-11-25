@@ -19,6 +19,7 @@ public interface DietRecordRepository extends JpaRepository<DietRecord, Long> {
 
     List<DietRecord> findByUserIdOrderByRecordedAtDesc(Long userId);
     
+    @Query("select d from DietRecord d where d.userId = ?1 and d.recordedAt between ?2 and ?3 order by d.id")
     List<DietRecord> findByUserIdAndRecordedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
     
     @Query("SELECT SUM(r.calories) FROM DietRecord r WHERE r.userId = ?1 AND r.recordedAt BETWEEN ?2 AND ?3")

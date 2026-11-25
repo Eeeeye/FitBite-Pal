@@ -1,0 +1,17 @@
+groups:
+  - name: fitbite
+    rules:
+      - alert: FitBiteUnavailable
+        expr: probe_success{job="fitbite-readiness"} == 0 or up{job="fitbite-readiness"} == 0 or absent(up{job="fitbite-readiness"})
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "FitBite readiness or its external probe has been unavailable for 30 seconds."
+      - alert: FitBiteReadinessSlow
+        expr: probe_duration_seconds{job="fitbite-readiness"} > 2 and probe_success{job="fitbite-readiness"} == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The FitBite readiness probe has taken over two seconds for two minutes."

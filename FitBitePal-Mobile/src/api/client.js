@@ -3,9 +3,8 @@
  * 处理所有 HTTP 请求和 JWT Token 管理
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from './config';
-import { getApiBaseUrlSync, initServerConfig } from '../../services/serverConfig';
+import { getApiBaseUrlSync } from '../../services/serverConfig';
 
 class ApiClient {
   constructor(config = API_CONFIG) {
@@ -14,10 +13,7 @@ class ApiClient {
     this.headers = config.headers;
     this.token = null;
     
-    // 初始化时从 AsyncStorage 加载 token 和服务器配置
-    this.loadToken();
-    // 异步初始化服务器配置（不阻塞构造函数）
-    initServerConfig().catch(() => {});
+    this.onUnauthorized = null;
   }
 
   /**
@@ -33,103 +29,6 @@ class ApiClient {
       // 忽略错误，使用默认值
     }
     return this._baseURL;
-  }
-
-  /**
-   * 从本地存储加载 Token
-   */
-  async loadToken() {
-    try {
-      const token = await AsyncStorage.getItem('access_token');
-      if (token) {
-        this.token = token;
-      }
-    } catch (error) {
-      console.error('Failed to load token:', error);
-    }
-  }
-
-  /**
-   * 设置认证令牌
-   */
-  async setToken(token) {
-    this.token = token;
-    if (token) {
-      try {
-        await AsyncStorage.setItem('access_token', token);
-      } catch (error) {
-        console.error('Failed to save token:', error);
-      }
-    } else {
-      try {
-        await AsyncStorage.removeItem('access_token');
-      } catch (error) {
-        console.error('Failed to remove token:', error);
-      }
-    }
-  }
-
-  /**
-   * 保存用户ID到本地存储
-   */
-  async saveUserId(userId) {
-    try {
-      if (userId) {
-        await AsyncStorage.setItem('user_id', userId.toString());
-      } else {
-        await AsyncStorage.removeItem('user_id');
-      }
-    } catch (error) {
-      console.error('Failed to save userId:', error);
-    }
-  }
-
-  /**
-   * 从本地存储加载用户ID
-   */
-  async loadUserId() {
-    try {
-      const userId = await AsyncStorage.getItem('user_id');
-      return userId ? parseInt(userId) : null;
-    } catch (error) {
-      console.error('Failed to load userId:', error);
-      return null;
-    }
-  }
-
-  /**
-   * 保存用户基本信息到本地存储
-   */
-  async saveUserInfo(userInfo) {
-    try {
-      await AsyncStorage.setItem('user_info', JSON.stringify(userInfo));
-    } catch (error) {
-      console.error('Failed to save user info:', error);
-    }
-  }
-
-  /**
-   * 从本地存储加载用户基本信息
-   */
-  async loadUserInfo() {
-    try {
-      const userInfo = await AsyncStorage.getItem('user_info');
-      return userInfo ? JSON.parse(userInfo) : null;
-    } catch (error) {
-      console.error('Failed to load user info:', error);
-      return null;
-    }
-  }
-
-  /**
-   * 清除所有本地存储数据
-   */
-  async clearStorage() {
-    try {
-      await AsyncStorage.multiRemove(['access_token', 'user_id', 'user_info']);
-    } catch (error) {
-      console.error('Failed to clear storage:', error);
-    }
   }
 
   /**
@@ -176,6 +75,7 @@ class ApiClient {
     const { data, params = {}, headers = {}, timeout: requestTimeout, ...rest } = options;
 
     const url = this.buildURL(endpoint, params);
+    const requestToken = this.token;
     const requestHeaders = this.buildHeaders(headers);
 
     try {
@@ -205,9 +105,8 @@ class ApiClient {
 
       if (!response.ok) {
         // 如果是 401，清除 token
-        if (response.status === 401) {
-          await this.setToken(null);
-          // 可以在这里触发导航到登录页
+        if (response.status === 401 && requestToken && this.token === requestToken) {
+          this.onUnauthorized?.();
         }
         
         const error = new Error(result.message || `HTTP Error: ${response.status}`);

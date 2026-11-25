@@ -8,6 +8,16 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class AICalculationService {
+
+    public boolean calculateIfComplete(User user) {
+        if (user.getHeight() == null || user.getWeight() == null || user.getAge() == null
+                || user.getGender() == null || user.getActivityLevel() == null || user.getGoal() == null) {
+            return false;
+        }
+        calculateHealthMetrics(user);
+        return true;
+    }
+
     
     /**
      * 计算用户健康指标

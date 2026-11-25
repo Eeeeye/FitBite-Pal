@@ -24,10 +24,10 @@ import com.fitbitepal.backend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
@@ -68,9 +68,9 @@ class BackendFlowTest {
         CacheManager testCaches() { return new ConcurrentMapCacheManager(); }
     }
 
-    @MockBean FoodItemInitializer foods;
-    @MockBean ExerciseInitializer exercises;
-    @MockBean EmailService email;
+    @MockitoBean FoodItemInitializer foods;
+    @MockitoBean ExerciseInitializer exercises;
+    @MockitoBean EmailService email;
     @Autowired MockMvc http;
     @Autowired CheckInService checkIns;
     @Autowired CheckInRecordRepository checkInRows;
@@ -96,6 +96,87 @@ class BackendFlowTest {
         user.setPassword(encoder.encode("initial-password"));
         users.saveAndFlush(user);
         bearer = "Bearer " + jwt.generateToken(user.getId(), user.getUsername());
+    }
+
+    @Test
+    void measurementGoalsUseAFixedBaselineAcrossRequestsAndChangeIndependently() throws Exception {
+        user.setWeight(80.0);
+        user.setBodyFatRate(24.0);
+        users.saveAndFlush(user);
+        String path = "/users/" + user.getId() + "/goals";
+        http.perform(patch(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"weight\":70,\"bodyFat\":20}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.weight.start").value(80))
+                .andExpect(jsonPath("$.data.weight.percent").value(0));
+        User measured = users.findById(user.getId()).orElseThrow();
+        measured.setWeight(75.0);
+        measured.setBodyFatRate(21.0);
+        users.saveAndFlush(measured);
+        http.perform(patch(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"weight\":70}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.weight.percent").value(50))
+                .andExpect(jsonPath("$.data.bodyFat.percent").value(75));
+        http.perform(patch(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"weight\":65}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.weight.start").value(75))
+                .andExpect(jsonPath("$.data.bodyFat.start").value(24));
+
+        String otherDevice = "Bearer " + jwt.generateToken(user.getId(), user.getUsername());
+        http.perform(get("/data/progress").param("userId", user.getId().toString()).param("days", "1")
+                        .header("Authorization", otherDevice)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.statistics.goals.weight.target").value(65))
+                .andExpect(jsonPath("$.data.statistics.goals.weight.percent").value(0));
+        measured = users.findById(user.getId()).orElseThrow();
+        measured.setWeight(64.0);
+        users.saveAndFlush(measured);
+        http.perform(patch(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"bodyFat\":null}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.weight.achieved").value(true))
+                .andExpect(jsonPath("$.data.weight.percent").value(100))
+                .andExpect(jsonPath("$.data.bodyFat.target").doesNotExist());
+    }
+
+    @Test
+    void goalsAwaitFirstRealMeasurementAndRejectForeignOrInvalidEdits() throws Exception {
+        String path = "/users/" + user.getId() + "/goals";
+        http.perform(get("/data/progress").param("userId", user.getId().toString()).header("Authorization", bearer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.statistics.goals.weight.target").doesNotExist());
+        http.perform(patch(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"weight\":60}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.weight.percent").doesNotExist());
+        String checkIn = "/users/" + user.getId() + "/check-in";
+        http.perform(post(checkIn).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content(json.writeValueAsBytes(Map.of("date", LocalDate.now().toString(), "weight", 69))))
+                .andExpect(status().isOk());
+        assertThat(users.findById(user.getId()).orElseThrow().getGoalWeightStart()).isEqualTo(69.0);
+        http.perform(patch(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"weight\":80,\"bodyFat\":110}")).andExpect(status().isBadRequest());
+        http.perform(patch("/users/" + (user.getId() + 10000) + "/goals").header("Authorization", bearer)
+                        .contentType(APPLICATION_JSON).content("{\"weight\":70}")).andExpect(status().isForbidden());
+        assertThat(users.findById(user.getId()).orElseThrow().getGoalWeight()).isEqualTo(60.0);
+    }
+
+    @Test
+    void bodyFatTrendRequiresADatedEstimateAndRecordsTodaysCalculation() throws Exception {
+        user.setWeight(75.0);
+        user.setHeight(175.0);
+        user.setGender("Male");
+        user.setAge(30);
+        user.setGoal("Lose weight");
+        user.setActivityLevel("Beginner");
+        user.setBodyFatRate(21.0);
+        users.saveAndFlush(user);
+        var yesterday = checkIns.save(user.getId(), new CheckInRequest(LocalDate.now().minusDays(1), 78.0, 175.0));
+        assertThat(yesterday.record().getBodyFatRate()).isNull();
+        http.perform(get("/data/progress").header("Authorization", bearer).param("userId", user.getId().toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.statistics.bodyFatChange").doesNotExist());
+        http.perform(post("/users/" + user.getId() + "/check-in").header("Authorization", bearer)
+                        .contentType(APPLICATION_JSON)
+                        .content(json.writeValueAsBytes(Map.of("date", LocalDate.now().toString(), "weight", 74))))
+                .andExpect(status().isOk());
+        var today = checkInRows.findByUserIdAndCheckInDate(user.getId(), LocalDate.now()).orElseThrow();
+        var current = users.findById(user.getId()).orElseThrow().getBodyFatRate();
+        assertThat(today.getBodyFatRate()).isPositive().isEqualTo(current);
     }
 
     @Test
@@ -142,8 +223,8 @@ class BackendFlowTest {
     @Test
     void resetChangesPasswordOnlyOnceAfterCodeConsumption() throws Exception {
         String code = "123456";
-        when(email.verifyCode(user.getEmail(), code)).thenReturn(true);
-        when(email.consumeCode(user.getEmail(), code)).thenReturn(true, false);
+        when(email.verifyCode(user.getId(), user.getEmail(), code)).thenReturn(true);
+        when(email.consumeCode(user.getId(), user.getEmail(), code)).thenReturn(true, false);
         http.perform(post("/auth/verify-code").contentType(APPLICATION_JSON)
                 .content(json.writeValueAsBytes(Map.of("email", user.getEmail(), "code", code))))
                 .andExpect(status().isOk());
@@ -337,6 +418,46 @@ class BackendFlowTest {
         var after = json.readTree(result.getResponse().getContentAsString()).get("data");
         assertThat(after.get("total").asLong()).isEqualTo(before.get("total").asLong() + 2);
         assertThat(after.get("completed").asLong()).isEqualTo(before.get("completed").asLong() + 1);
+    }
+
+    @Test
+    void selfDeletionConfirmsPasswordAndOnlyDeletesTheAuthenticatedOwner() throws Exception {
+        User other = new User();
+        other.setUsername(UUID.randomUUID().toString());
+        other.setEmail(other.getUsername() + "@example.test");
+        other.setPassword(encoder.encode("other-password"));
+        users.saveAndFlush(other);
+        checkIns.save(other.getId(), new CheckInRequest(date, null, null));
+        checkIns.save(user.getId(), new CheckInRequest(date, null, null));
+        String path = "/users/me";
+        String body = json.writeValueAsString(Map.of("password", "initial-password", "userId", other.getId()));
+        http.perform(delete(path).contentType(APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        http.perform(delete(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"password\":\"\"}")).andExpect(status().isBadRequest());
+        http.perform(delete(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content("{\"password\":\"other-password\"}")).andExpect(status().isForbidden());
+        assertThat(users.findById(user.getId())).isPresent();
+        http.perform(delete(path).header("Authorization", bearer).contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        assertThat(users.findById(other.getId())).isPresent();
+        http.perform(delete(path).header("Authorization", bearer).contentType(APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("password", "initial-password"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        assertThat(users.findById(user.getId())).isEmpty();
+        assertThat(checkInRows.findByUserIdAndCheckInDate(user.getId(), date)).isEmpty();
+        org.mockito.Mockito.verify(email).revoke(user.getEmail());
+        assertThat(users.findById(other.getId())).isPresent();
+        assertThat(checkInRows.findByUserIdAndCheckInDate(other.getId(), date)).isPresent();
+        http.perform(delete(path).header("Authorization", bearer).contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        http.perform(get("/users/" + user.getId()).header("Authorization", bearer)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deletionPageAndItsScriptOpenWithoutAnAccount() throws Exception {
+        http.perform(get("/account-deletion.html")).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("FitBite")));
+        http.perform(get("/account-deletion.js")).andExpect(status().isOk());
     }
 
     @Test

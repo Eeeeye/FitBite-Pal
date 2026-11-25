@@ -208,13 +208,13 @@ export const getDietAdviceFromAI = async (userProfile, question = '') => {
  * @param {string} imageUri - 可选的图像URI
  * @returns {Promise<string>} AI回复
  */
-export const chatWithAI = async (message, imageUri = null) => {
+export const chatWithAI = async (message, imageUri = null, language = 'zh') => {
   try {
     if (!imageUri && !message) {
       return '请输入消息或选择图片。';
     }
 
-    const response = await requestChat(message, imageUri, 'zh');
+    const response = await requestChat(message, imageUri, language);
     return response || '抱歉，我现在无法回答这个问题。';
   } catch (error) {
     console.error('Chat error:', error);
@@ -278,6 +278,8 @@ const requestAdvice = async (questionType, question, context = '') => {
 };
 
 const requestChat = async (message, imageUri = null, language = 'zh') => {
+  const token = apiClient.token;
+  const server = apiClient.baseURL;
   const payload = {
     message,
     language,
@@ -292,6 +294,7 @@ const requestChat = async (message, imageUri = null, language = 'zh') => {
     }
   }
 
+  if (apiClient.token !== token || apiClient.baseURL !== server) throw new Error('Chat session changed');
   const response = await apiClient.post('/ai/chat', payload, {
     timeout: AI_REQUEST_TIMEOUT_MS,
   });

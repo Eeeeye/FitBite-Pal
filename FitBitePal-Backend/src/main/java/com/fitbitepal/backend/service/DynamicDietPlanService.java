@@ -29,7 +29,7 @@ public class DynamicDietPlanService {
     public List<DietPlan> generateDietPlanForDate(Long userId, LocalDate date) {
         return published.read(RedisConfig.CACHE_DIET_PLAN, userId, date,
                 () -> dietPlans.findByUserIdAndPlanDateOrderByMealTimeAsc(userId, date),
-                user -> ensurePlan(user, date));
+                user -> ensurePlan(user, date)).stream().filter(plan -> !plan.isHidden()).toList();
     }
 
     // The caller already holds the user's database row lock for the transaction.

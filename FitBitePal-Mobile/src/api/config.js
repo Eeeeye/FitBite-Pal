@@ -2,43 +2,10 @@
  * API 配置文件
  * FitBite Pal - React Native 版本
  */
-import { Platform } from 'react-native';
-
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🔧 API 地址配置 - 使用前请修改这里！                          ║
-// ╠══════════════════════════════════════════════════════════════╣
-// ║                                                              ║
-// ║  步骤 1: 查看你电脑的 IP 地址                                  ║
-// ║         Windows: 打开 CMD，输入 ipconfig                      ║
-// ║         Mac/Linux: 打开终端，输入 ifconfig                     ║
-// ║         找到 IPv4 地址，如 192.168.x.x                        ║
-// ║                                                              ║
-// ║  步骤 2: 修改下面的 YOUR_COMPUTER_IP                          ║
-// ║                                                              ║
-// ╚══════════════════════════════════════════════════════════════╝
-
-// ┌────────────────────────────────────────────────────────────┐
-// │ ⬇️ 把这里的 IP 改成你自己电脑的 IP 地址 ⬇️                    │
-// └────────────────────────────────────────────────────────────┘
-const YOUR_COMPUTER_IP = '10.49.118.63';  // 当前电脑局域网地址
-
-// ┌────────────────────────────────────────────────────────────┐
-// │ 后端服务端口（一般不用改）                                     │
-// └────────────────────────────────────────────────────────────┘
-const BACKEND_PORT = '8080';
-
-// ════════════════════════════════════════════════════════════════
-// 以下内容无需修改
-// ════════════════════════════════════════════════════════════════
-
-// 自动组合 API 地址。Web/生产构建优先使用 EXPO_PUBLIC_API_URL。
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || `http://${YOUR_COMPUTER_IP}:${BACKEND_PORT}/api`;
-
-// 如果有云服务器，可以取消下面的注释并填入地址
-// const API_BASE_URL = 'https://your-server.com/api';
+import { getApiBaseUrlSync } from '../../services/serverConfig';
 
 export const API_CONFIG = {
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrlSync(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

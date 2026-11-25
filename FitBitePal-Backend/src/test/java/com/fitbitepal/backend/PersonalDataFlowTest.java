@@ -25,9 +25,9 @@ import com.fitbitepal.backend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -55,9 +55,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 class PersonalDataFlowTest {
-    @MockBean FoodItemInitializer foods;
-    @MockBean ExerciseInitializer exercises;
-    @MockBean ArkAIService ark;
+    @MockitoBean FoodItemInitializer foods;
+    @MockitoBean ExerciseInitializer exercises;
+    @MockitoBean ArkAIService ark;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
@@ -110,6 +110,9 @@ class PersonalDataFlowTest {
         owner.setTargetCalories(2000);
         users.saveAndFlush(owner);
         addCheckIn(first, 70.0);
+        var pastCheckIn = checkIns.findByUserIdAndCheckInDate(owner.getId(), first).orElseThrow();
+        pastCheckIn.setBodyFatRate(23.5);
+        checkIns.saveAndFlush(pastCheckIn);
         addCheckIn(today.minusDays(1), null);
         addSnapshot(first, 200, 400); // Superseded historical snapshot.
         addSnapshot(first, 1000, 1600);
@@ -138,7 +141,8 @@ class PersonalDataFlowTest {
         assertThat(progress.at("/calorieRecords/2/expenditure").asInt()).isEqualTo(1650);
         assertThat(progress.at("/calorieRecords/2/intake").asInt()).isEqualTo(900);
         assertThat(progress.at("/statistics/weightChange").asDouble()).isEqualTo(2.0);
-        assertThat(progress.at("/statistics/bodyFatChange").asDouble()).isEqualTo(1.0);
+        assertThat(progress.at("/statistics/bodyFatChange").asDouble()).isEqualTo(-3.5);
+        assertThat(progress.at("/statistics/bodyFatChangeSince").asText()).isEqualTo(first.toString());
         assertThat(progress.at("/statistics/avgCalorieBurn").asInt()).isEqualTo(1700);
         assertThat(progress.at("/statistics/nutritionScore").asInt()).isEqualTo(54);
         assertThat(progress.at("/statistics/nutritionScoreChange").asInt()).isEqualTo(13);

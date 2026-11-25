@@ -33,6 +33,8 @@ public class CheckInRecord {
     // ✅ 新增：记录打卡时的身高（用于历史数据统计）
     @Column(name = "height")
     private Double height;
+
+    private Double bodyFatRate;
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;

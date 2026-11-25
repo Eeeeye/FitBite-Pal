@@ -57,6 +57,39 @@ public class User {
     private Double goalWeight;  // kg
 
     private Double goalBodyFatRate;  // %
+
+    private Double goalWeightStart;
+    private Double goalBodyFatStart;
+
+    public void setGoalWeight(Double target) {
+        if (!java.util.Objects.equals(goalWeight, target)) {
+            goalWeightStart = target == null ? null : positiveMeasurement(weight);
+        }
+        goalWeight = target;
+    }
+
+    public void setGoalBodyFatRate(Double target) {
+        if (!java.util.Objects.equals(goalBodyFatRate, target)) {
+            goalBodyFatStart = target == null ? null : positiveMeasurement(bodyFatRate);
+        }
+        goalBodyFatRate = target;
+    }
+
+    // A goal may be set before onboarding or before the first body-fat estimate.
+    @PrePersist
+    @PreUpdate
+    public void capturePendingGoalMeasurements() {
+        if (goalWeight != null && goalWeight > 0 && goalWeightStart == null) {
+            goalWeightStart = positiveMeasurement(weight);
+        }
+        if (goalBodyFatRate != null && goalBodyFatRate > 0 && goalBodyFatStart == null) {
+            goalBodyFatStart = positiveMeasurement(bodyFatRate);
+        }
+    }
+
+    private static Double positiveMeasurement(Double value) {
+        return value != null && Double.isFinite(value) && value > 0 ? value : null;
+    }
     
     @Column(length = 50)
     private String goal;  // Lose weight, Get fitter, Gain more flexible

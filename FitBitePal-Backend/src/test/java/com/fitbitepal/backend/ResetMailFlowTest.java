@@ -7,8 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
@@ -20,6 +21,7 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @EnabledIfEnvironmentVariable(named = "FITBITE_TEST_INBOX_PORT", matches = "[0-9]+")
+@AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.datasource.url=jdbc:h2:mem:mailflow;MODE=MySQL;DB_CLOSE_DELAY=-1;NON_KEYWORDS=VALUE,DAY",
         "spring.datasource.username=sa", "spring.datasource.password=",
@@ -30,8 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.jpa.show-sql=false", "server.address=127.0.0.1"
 })
 class ResetMailFlowTest {
-    @MockBean FoodItemInitializer foods;
-    @MockBean ExerciseInitializer exercises;
+    @MockitoBean FoodItemInitializer foods;
+    @MockitoBean ExerciseInitializer exercises;
     @LocalServerPort int port;
     @Autowired TestRestTemplate http;
     @Autowired Environment environment;

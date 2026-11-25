@@ -20,17 +20,31 @@ import java.util.Map;
 public class CompletionService {
     private final CompletionRecordRepository records;
     private final UserRepository users;
+    private final MealCompletionService mealCompletions;
 
     @Transactional(readOnly = true)
     public List<CompletionRecord> list(Long userId, LocalDate date, String type) {
-        return date == null
-                ? records.findByUserIdAndItemTypeOrderByRecordDateDesc(userId, type)
+        var result = date == null ? records.findByUserIdAndItemTypeOrderByRecordDateDesc(userId, type)
                 : records.findByUserIdAndRecordDateAndItemType(userId, date, type);
+        if ("meal".equals(type) && !result.isEmpty()) {
+            Map<Long, Integer> positions = new HashMap<>();
+            records.mealFlags(userId, date).forEach(row -> positions.put(row.getRecordId(), row.getItemIndex()));
+            // Negative positions are outside the visible index space on old clients.
+            result.forEach(row -> {
+                Integer position = positions.get(row.getId());
+                row.setDisplayIndex(position == null ? -1 : position);
+            });
+            if (date != null) {
+                return result.stream().filter(row -> row.getMealKey() == null || positions.get(row.getId()) != null).toList();
+            }
+        }
+        return result;
     }
 
     @Transactional
     public CompletionRecord save(Long userId, LocalDate date, String type, CompletionItemRequest item) {
         lockUser(userId);
+        if ("meal".equals(type)) return mealCompletions.saveOne(userId, date, item);
         CompletionRecord record = records.findByUserIdAndRecordDateAndItemTypeAndItemIndex(
                 userId, date, type, item.getItemIndex()).orElseGet(CompletionRecord::new);
         return apply(record, userId, date, type, item);
@@ -39,6 +53,10 @@ public class CompletionService {
     @Transactional
     public void saveBatch(BatchCompletionRequest batch) {
         lockUser(batch.userId());
+        if ("meal".equals(batch.itemType())) {
+            mealCompletions.save(batch.userId(), batch.date(), batch.items());
+            return;
+        }
         Map<Integer, CompletionRecord> byIndex = new HashMap<>();
         records.findByUserIdAndRecordDateAndItemType(batch.userId(), batch.date(), batch.itemType())
                 .forEach(record -> byIndex.put(record.getItemIndex(), record));
@@ -55,6 +73,7 @@ public class CompletionService {
 
     private CompletionRecord apply(CompletionRecord record, Long userId, LocalDate date,
                                    String type, CompletionItemRequest item) {
+        if (item.getMealKey() != null) throw new IllegalArgumentException("mealKey applies only to meal completions");
         record.setCompleted(item.getCompleted());
         record.setItemName(item.getItemName());
         record.setCalories(item.getCalories());

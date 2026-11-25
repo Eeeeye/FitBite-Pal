@@ -17,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class ActivityRecordService {
     private final UserRepository users;
     private final DietRecordRepository diets;
+    private final DietPlanRepository dietPlans;
+    private final CompletionRecordRepository completions;
+    private final UserService profiles;
     private final TrainingRecordRepository training;
     private final CalorieRecordRepository calories;
 
@@ -59,9 +62,22 @@ public class ActivityRecordService {
     }
 
     public void deleteDiet(Long id, User actor) {
+        User owner = users.lockDietOwner(id, actor.getId(), "ADMIN".equals(actor.getRole()))
+                .orElseThrow(() -> new ResourceNotFoundException("Diet record not found"));
+        completions.deleteMeal(owner.getId(), "record:" + id);
         if (diets.deleteForActor(id, actor.getId(), "ADMIN".equals(actor.getRole())) == 0) {
             throw new ResourceNotFoundException("Diet record not found");
         }
+    }
+
+    public void hidePlannedMeal(Long userId, Long id) {
+        lockUser(userId);
+        DietPlan plan = dietPlans.findById(id)
+                .filter(row -> userId.equals(row.getUserId()) && row.getPlanDate() != null)
+                .orElseThrow(() -> new ResourceNotFoundException("Diet plan not found"));
+        plan.setHidden(true);
+        completions.deleteMeal(userId, "plan:" + id);
+        profiles.evictAllUserCaches(userId);
     }
 
     private void lockUser(Long userId) {

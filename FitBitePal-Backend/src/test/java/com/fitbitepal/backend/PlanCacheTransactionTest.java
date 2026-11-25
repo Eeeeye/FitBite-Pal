@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -31,8 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.jpa.show-sql=false", "logging.level.org.hibernate=WARN"
 })
 class PlanCacheTransactionTest {
-    @MockBean FoodItemInitializer foods;
-    @MockBean ExerciseInitializer exercises;
+    @MockitoBean FoodItemInitializer foods;
+    @MockitoBean ExerciseInitializer exercises;
     @Autowired CacheManager caches;
     @Autowired TransactionTemplate transactions;
     @Autowired UserService profiles;

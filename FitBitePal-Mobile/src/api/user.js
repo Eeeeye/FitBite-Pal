@@ -9,6 +9,9 @@ export const fetchUserProfile = (userId) =>
 export const fetchTrainingPlan = (userId, params = {}) =>
   apiClient.get(`/users/${userId}/training-plan`, { params });
 
+export const deleteDietPlanMeal = (userId, planId) =>
+  apiClient.delete(`/users/${userId}/diet-plan/${planId}`);
+
 export const fetchDietPlan = (userId) =>
   apiClient.get(`/users/${userId}/diet-plan`);
 
@@ -93,3 +96,6 @@ export const getTodayCompletionStatus = (userId) =>
 // 调整今天的训练计划
 export const adjustTodayPlan = (userId, adjustData) =>
   apiClient.post(`/users/${userId}/adjust-today-plan`, adjustData);
+
+export const updateMeasurementGoals = (userId, changes) =>
+  apiClient.patch(`/users/${userId}/goals`, changes);

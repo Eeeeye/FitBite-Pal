@@ -14,6 +14,7 @@ import {
 } from '../api/user';
 import { createScreenReads, applyScreenWrite, readProgressSnapshot, localDateKey as getDateKey } from '../utils/screenReads';
 import { useAuth } from './AuthContext';
+import { isMealKey, completionFlags, applyFlagChanges } from '../utils/mealIdentity';
 
 const DataContext = createContext();
 
@@ -29,6 +30,7 @@ export const DataProvider = ({ children }) => {
   const { userId } = useAuth();
   const [reads] = useState(createScreenReads);
   const [pendingWrites] = useState(() => new Map());
+  const [pendingDeletes] = useState(() => new Map());
 
   // 训练和餐次完成状态
   const [completedExercises, setCompletedExercises] = useState({});
@@ -64,8 +66,8 @@ export const DataProvider = ({ children }) => {
 
   const applyCompletionFlags = useCallback((date, type, flags) => {
     const checked = { ...flags };
-    for (const { data } of pendingWrites.values()) {
-      if (data.date === date && data.itemType === type) checked[data.itemIndex] = data.completed;
+    for (const { data, field } of pendingWrites.values()) {
+      if (data.date === date && data.itemType === type) checked[field] = data.completed;
     }
     const setRecords = type === 'exercise' ? setCompletedExercises : setCompletedMeals;
     setRecords(previous => ({ ...previous, [date]: checked }));
@@ -73,10 +75,10 @@ export const DataProvider = ({ children }) => {
 
   const loadCompletionRecords = useCallback(async (date, type) => {
     try {
-      await reads.run(type + ':' + date, () => fetchCompletionRecordsApi(userId, date, type), response => {
+      await reads.run(type + ':' + date, () => fetchCompletionRecordsApi(userId, date, type), (response, changes) => {
         if (!response.success || !Array.isArray(response.data)) return;
-        applyCompletionFlags(date, type, Object.fromEntries(response.data.map(item => [item.itemIndex, item.completed])));
-      });
+        applyCompletionFlags(date, type, applyFlagChanges(completionFlags(response.data, type), changes));
+      }, {});
     } catch (error) {
       console.error('Error loading completion records:', error);
     }
@@ -151,20 +153,23 @@ export const DataProvider = ({ children }) => {
 
   const saveCompletion = async (data) => {
     const day = data.itemType + ':' + data.date;
-    const id = day + ':' + data.itemIndex;
+    const field = data.itemType === 'meal' ? data.mealKey : data.itemIndex;
+    if (data.itemType === 'meal' && !isMealKey(field)) return { success: false, message: 'Meal has no saved ID' };
+    const id = day + ':' + field;
+    if (pendingDeletes.has(id)) return { success: false, message: 'Meal deletion in progress' };
     const setRecords = data.itemType === 'exercise' ? setCompletedExercises : setCompletedMeals;
     const previous = pendingWrites.get(id);
     const values = data.itemType === 'exercise' ? completedExercises : completedMeals;
-    const confirmed = previous?.confirmed || { value: Boolean(values[data.date]?.[data.itemIndex]) };
+    const confirmed = previous?.confirmed || { value: Boolean(values[data.date]?.[field]) };
     const post = async () => {
       const response = await saveCompletionApi(data);
       if (response.success) confirmed.value = data.completed;
       return response;
     };
     const promise = previous ? previous.promise.then(post, post) : post();
-    pendingWrites.set(id, { data, promise, confirmed });
-    reads.updateField(day, data.itemIndex, data.completed);
-    setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [data.itemIndex]: data.completed } }));
+    pendingWrites.set(id, { data, field, promise, confirmed });
+    reads.updateField(day, field, data.completed);
+    setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [field]: data.completed } }));
     try {
       const response = await promise;
       if (!response.success) throw new Error(response.message || 'Could not save completion');
@@ -172,17 +177,31 @@ export const DataProvider = ({ children }) => {
     } catch (error) {
       if (pendingWrites.get(id)?.promise === promise) {
         pendingWrites.delete(id);
-        reads.updateField(day, data.itemIndex, confirmed.value);
-        setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [data.itemIndex]: confirmed.value } }));
+        reads.updateField(day, field, confirmed.value);
+        setRecords(rows => ({ ...rows, [data.date]: { ...rows[data.date], [field]: confirmed.value } }));
         await loadCompletionRecords(data.date, data.itemType);
       }
       return { success: false, message: error.message };
     } finally {
       if (pendingWrites.get(id)?.promise === promise) {
         pendingWrites.delete(id);
-        reads.updateField(day, data.itemIndex, data.completed);
+        reads.updateField(day, field, data.completed);
       }
     }
+  };
+
+  const deleteMeal = (date, mealKey, remove) => {
+    if (!isMealKey(mealKey)) return Promise.reject(new Error('Unknown meal'));
+    const day = 'meal:' + date;
+    const id = day + ':' + mealKey;
+    if (pendingDeletes.has(id)) return pendingDeletes.get(id);
+    const previous = pendingWrites.get(id)?.promise;
+    const request = Promise.resolve(previous).catch(() => {}).then(remove).then(() => {
+      reads.updateField(day, mealKey, null);
+      setCompletedMeals(rows => ({ ...rows, [date]: applyFlagChanges(rows[date], { [mealKey]: null }) }));
+    }).finally(() => pendingDeletes.delete(id));
+    pendingDeletes.set(id, request);
+    return request;
   };
 
   const saveCheckIn = async (date, measurements = {}) => {
@@ -255,7 +274,7 @@ export const DataProvider = ({ children }) => {
   };
 
   // 标记餐次完成的便捷方法
-  const markMealComplete = async (mealId, mealName, calories = 0) => {
+  const markMealComplete = async (itemIndex, mealName, calories = 0, mealKey) => {
     if (!userId) return { success: false };
     
     const today = getDateKey(new Date());
@@ -265,7 +284,7 @@ export const DataProvider = ({ children }) => {
       userId,
       date: today,
       itemType: 'meal',
-      itemIndex: mealId || 0,
+      itemIndex, mealKey,
       completed: true,
       itemName: mealName || 'Meal',
       calories: calories || 0,
@@ -285,6 +304,7 @@ export const DataProvider = ({ children }) => {
     saveCompletion,
     markExerciseComplete,
     markMealComplete,
+    deleteMeal,
 
     // 日期
     currentDate,

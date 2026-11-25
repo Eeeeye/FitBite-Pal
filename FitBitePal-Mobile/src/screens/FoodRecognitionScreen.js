@@ -272,7 +272,7 @@ export const FoodRecognitionScreen = ({ navigation }) => {
                       mealType: selectedMealType, // ✅ 使用用户选择的餐次
                       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
                       mealTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                      recordedAt: new Date().toISOString(), // ✅ 添加记录时间
+                      recordedAt: response.data?.recordedAt || new Date().toISOString(),
                       calories: dietData.calories,
                       protein: dietData.protein,
                       carbs: dietData.carbs,

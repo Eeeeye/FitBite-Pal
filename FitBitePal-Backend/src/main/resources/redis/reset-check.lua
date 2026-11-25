@@ -12,6 +12,8 @@ if kind == 'string' then
     redis.call('PEXPIRE', key, ttl)
 end
 
+local owner = redis.call('HGET', key, 'owner')
+if owner and owner ~= ARGV[4] then return 0 end
 local code = redis.call('HGET', key, 'code')
 if not code then return 0 end
 if code == ARGV[1] then

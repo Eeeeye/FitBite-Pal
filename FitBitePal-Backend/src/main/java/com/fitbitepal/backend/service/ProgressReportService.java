@@ -1,6 +1,7 @@
 package com.fitbitepal.backend.service;
 
 import com.fitbitepal.backend.exception.ResourceNotFoundException;
+import com.fitbitepal.backend.dto.GoalProgress;
 import com.fitbitepal.backend.model.CalorieRecord;
 import com.fitbitepal.backend.model.CheckInRecord;
 import com.fitbitepal.backend.model.User;
@@ -36,7 +37,8 @@ public class ProgressReportService {
     public record LiveCalorieDay(LocalDate date, long intake, long expenditure, int baseMetabolism,
                                  long exerciseCalories) {}
     public record Report(List<WeightDay> weightRecords, List<LiveCalorieDay> calorieRecords,
-                         Map<String, Object> statistics, Map<Integer, Boolean> mealCompletions) {}
+                         Map<String, Object> statistics, Map<Integer, Boolean> mealCompletions,
+                         Map<String, Boolean> mealCompletionsByKey) {}
 
     public Report progress(Long userId, int days, LocalDate endDate, User actor) {
         LocalDate today = LocalDate.now();
@@ -48,9 +50,14 @@ public class ProgressReportService {
         var snapshots = calories.latestByDay(userId, serverStart, today);
         var activity = completions.activityByDate(userId, serverStart, today, clientStart, clientEnd);
         var flags = new HashMap<Integer, Boolean>();
-        completions.mealFlags(userId, clientEnd).forEach(row -> flags.put(row.getItemIndex(), row.getCompleted()));
+        var keyed = new HashMap<String, Boolean>();
+        for (var row : completions.mealFlags(userId, clientEnd)) {
+            if (row.getItemIndex() != null) flags.put(row.getItemIndex(), row.getCompleted());
+            if (row.getMealKey() == null) keyed.put("legacy:" + row.getRecordId(), row.getCompleted());
+            else if (row.getItemIndex() != null) keyed.put(row.getMealKey(), row.getCompleted());
+        }
         return new Report(weights(user, history, today), liveDays(user, clientStart, days, activity),
-                statistics(user, history, snapshots, activity, serverStart, today), flags);
+                statistics(user, history, snapshots, activity, serverStart, today), flags, keyed);
     }
 
     public List<WeightDay> weightHistory(Long userId, int days) {
@@ -133,7 +140,8 @@ public class ProgressReportService {
         double baseline = history.stream().map(CheckInRecord::getWeight).filter(Objects::nonNull)
                 .findFirst().orElse(weight);
         double bodyFat = user == null || user.getBodyFatRate() == null ? 0.0 : user.getBodyFatRate();
-        double fatChange = weight > 0 && bodyFat > 0 ? (weight - baseline) / weight * 35.0 : 0.0;
+        var priorBodyFat = history.stream().filter(row -> row.getCheckInDate().isBefore(end)
+                && row.getBodyFatRate() != null && row.getBodyFatRate() > 0).findFirst();
         var meals = new HashMap<LocalDate, DailyActivity>();
         long totalMeals = 0;
         long completedMeals = 0;
@@ -147,11 +155,19 @@ public class ProgressReportService {
         double averageIntake = snapshots.stream().mapToInt(r -> r.getCalorieIntake() == null ? 0 : r.getCalorieIntake())
                 .average().orElse(0);
         int averageBurn = (int) snapshots.stream().mapToInt(CalorieRecord::getCalorieExpenditure).average().orElse(0);
-        return Map.of("currentWeight", weight, "weightChange", roundDouble(weight - baseline), "bodyFat", bodyFat,
-                "bodyFatChange", roundDouble(Math.max(-5.0, Math.min(5.0, fatChange))), "avgCalorieBurn", averageBurn,
+        var goals = GoalProgress.from(user);
+        var result = new HashMap<String, Object>(Map.of("currentWeight", weight, "weightChange", roundDouble(weight - baseline), "bodyFat", bodyFat,
+                "avgCalorieBurn", averageBurn,
                 "nutritionScore", (int) Math.round(nutritionScore(user, snapshots.isEmpty() ? null : averageIntake, completedMeals, totalMeals)),
                 "nutritionScoreChange", nutritionChange(user, snapshots, meals, start, end),
-                "goalWeight", resolveGoalWeight(user, weight), "goalBodyFat", resolveGoalBodyFat(user, bodyFat));
+                "goalWeight", goals.weight().target() == null ? 0.0 : goals.weight().target(),
+                "goalBodyFat", goals.bodyFat().target() == null ? 0.0 : goals.bodyFat().target(), "goals", goals));
+        priorBodyFat.filter(row -> bodyFat > 0).ifPresent(row -> {
+            result.put("bodyFatChange", roundDouble(bodyFat - row.getBodyFatRate()));
+            result.put("bodyFatChangeSince", row.getCheckInDate());
+        });
+        result.putIfAbsent("bodyFatChange", null);
+        return result;
     }
 
     private double nutritionScore(User user, Double intake, long completed, long total) {
@@ -190,32 +206,6 @@ public class ProgressReportService {
             else second += score;
         }
         return (int) Math.round(second / (days - firstDays) - first / firstDays);
-    }
-
-    private double resolveGoalWeight(User user, Double currentWeight) {
-        if (user != null && user.getGoalWeight() != null && user.getGoalWeight() > 0) {
-            return user.getGoalWeight();
-        }
-        if (user == null || currentWeight == null || currentWeight <= 0) {
-            return 70.0;
-        }
-        if ("Lose weight".equalsIgnoreCase(user.getGoal())) {
-            return Math.max(30.0, currentWeight - 5.0);
-        }
-        if ("Build muscle".equalsIgnoreCase(user.getGoal())) {
-            return currentWeight + 3.0;
-        }
-        return currentWeight;
-    }
-
-    private double resolveGoalBodyFat(User user, Double currentBodyFat) {
-        if (user != null && user.getGoalBodyFatRate() != null && user.getGoalBodyFatRate() > 0) {
-            return user.getGoalBodyFatRate();
-        }
-        if (currentBodyFat != null && currentBodyFat > 0) {
-            return Math.max(8.0, currentBodyFat - 3.0);
-        }
-        return 18.0;
     }
 
     private double roundDouble(Double value) {

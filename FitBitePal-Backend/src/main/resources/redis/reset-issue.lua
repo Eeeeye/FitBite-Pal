@@ -6,7 +6,7 @@ if redis.call('TYPE', key).ok == 'hash' then
     if now < nextSend then return 0 end
 end
 redis.call('DEL', key)
-redis.call('HSET', key, 'code', ARGV[1], 'issueId', ARGV[2], 'failures', 0,
+redis.call('HSET', key, 'code', ARGV[1], 'issueId', ARGV[2], 'owner', ARGV[5], 'failures', 0,
            'nextSend', now + tonumber(ARGV[4]))
 redis.call('EXPIRE', key, ARGV[3])
 return 1

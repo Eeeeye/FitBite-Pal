@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
@@ -34,7 +35,9 @@ public class RedisConfig {
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         var types = mapper.getTypeFactory();
-        return RedisCacheManager.builder(connections)
+        // Once the database commits, the next request must see completed cache writes and evictions.
+        var writer = RedisCacheWriter.create(connections, config -> config.immediateWrites());
+        return RedisCacheManager.builder(writer)
                 .withInitialCacheConfigurations(Map.of(
                         CACHE_PLAN_VERSION, cache(mapper, types.constructType(String.class), Duration.ofHours(12)),
                         CACHE_USER, cache(mapper, types.constructType(User.class), Duration.ofHours(24)),

@@ -5,11 +5,13 @@ import {
   fetchDietPlan as fetchDietPlanApi,
   fetchDietRecords as fetchDietRecordsApi,
   deleteDietRecord,
+  deleteDietPlanMeal,
   saveUserProfile as saveUserProfileApi,
   updateBasicInfo as updateBasicInfoApi,
 } from '../api/user';
 import { localDateKey, createScreenReads, applyScreenWrite } from '../utils/screenReads';
 import { useAuth } from './AuthContext';
+import { mealKeyFor } from '../utils/mealIdentity';
 
 const UserProfileContext = createContext();
 
@@ -91,46 +93,44 @@ export const UserProfileProvider = ({ children }) => {
 
         const plans = (planResponse.data || []).map(plan => ({
           ...plan, meal: plan.mealName || plan.mealType || plan.meal,
-          time: plan.mealTime || plan.time, source: 'plan',
+          time: plan.mealTime || plan.time, source: 'plan', mealKey: mealKeyFor('plan', plan.id),
           foods: Array.isArray(plan.foods) ? plan.foods : (plan.foods ? [plan.foods] : []),
         }));
         const records = (recordsResponse.data || []).map(record => {
           const recorded = new Date(record.recordedAt);
           const time = recorded.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
           return {
-            ...record, id: 'record-' + record.id, name: record.foodName, meal: record.foodName,
+            ...record, mealKey: mealKeyFor('record', record.id), name: record.foodName, meal: record.foodName,
             mealName: record.foodName, mealType: record.mealType || 'Custom', time, mealTime: time,
             foods: record.foodName, ingredients: record.notes || JSON.stringify([{ name: record.foodName, amount: '' }]),
             isCustom: true, planDate: localDateKey(recorded), source: 'record',
           };
         });
-        setDietPlan([...plans, ...records]);
+        setDietPlan([...plans, ...records].filter(meal => meal.mealKey));
       });
     } catch (error) {
       console.error('Error loading diet plan:', error);
     }
   }, [reads, userId]);
 
-  const updateDietPlan = (update, persisted) => {
-    applyScreenWrite(reads, 'diet:' + localDateKey(), () => setDietPlan(update),
-      persisted ? loadDietPlan : undefined);
-  };
+  const updateDietPlan = update =>
+    applyScreenWrite(reads, 'diet:' + localDateKey(), () => setDietPlan(update), loadDietPlan);
 
   const addDietItem = meal => {
-    const persisted = meal.id != null;
-    const id = persisted ? 'record-' + meal.id : 'local-' + Date.now();
-    updateDietPlan(items => [...items.filter(item => item.id !== id), { ...meal, id }], persisted);
+    const mealKey = mealKeyFor('record', meal.id);
+    if (!mealKey) {
+      reads.invalidate('diet:' + localDateKey());
+      return loadDietPlan();
+    }
+    return updateDietPlan(items => [...items.filter(item => item.mealKey !== mealKey),
+      { ...meal, source: 'record', mealKey }]);
   };
 
   const removeDietItem = async meal => {
-    const recordId = String(meal.id ?? '').replace(/^record-/, '');
-    const persisted = meal.source === 'record' && /^\d+$/.test(recordId);
-    if (persisted) {
-      const response = await deleteDietRecord(recordId);
-      if (!response.success) throw new Error(response.message || 'Could not delete meal');
-    }
-    updateDietPlan(items => items.filter(item => item !== meal &&
-      !(meal.id != null && item.id === meal.id && item.source === meal.source)), persisted);
+    if (!meal.mealKey || meal.mealKey !== mealKeyFor(meal.source, meal.id)) throw new Error('Unknown meal');
+    const response = meal.source === 'plan' ? await deleteDietPlanMeal(userId, meal.id) : await deleteDietRecord(meal.id);
+    if (!response.success) throw new Error(response.message || 'Could not delete meal');
+    await updateDietPlan(items => items.filter(item => item.mealKey !== meal.mealKey));
   };
 
   const saveProfile = async (profileData) => {

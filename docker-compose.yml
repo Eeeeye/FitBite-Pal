@@ -65,7 +65,7 @@ services:
         condition: service_healthy
     environment:
       # 数据库配置
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fitbitepal}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_URL: ${FITBITE_JDBC_URL:-jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fitbitepal}?sslMode=REQUIRED&serverTimezone=Asia/Shanghai}
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-fitbite_app}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?Set a separate application database password}
       
@@ -85,7 +85,7 @@ services:
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       
       # 邮件配置
-      FITBITE_DEFAULT_PROFILE: provider
+      SPRING_PROFILES_ACTIVE: prod
       MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
@@ -95,8 +95,8 @@ services:
       # AI 配置
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_TIMEOUT: ${AI_TIMEOUT:-90000}
-      ARK_API_KEY: ${ARK_API_KEY}
-      ARK_MODEL: ${ARK_MODEL}
+      ARK_API_KEY: ${ARK_API_KEY:-}
+      ARK_MODEL: ${ARK_MODEL:-doubao-seed-2.0-pro}
       ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/coding/v3}
       ARK_ENABLED: ${ARK_ENABLED:-true}
       
@@ -107,11 +107,11 @@ services:
       # 时区
       TZ: Asia/Shanghai
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${FITBITE_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8080}:8080"
     networks:
       - fitbitepal-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health/readiness"]
       interval: 30s
       timeout: 10s
       retries: 3

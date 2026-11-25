@@ -25,7 +25,7 @@ export const DietScreen = ({ navigation }) => {
   const { userId } = useAuth();
   const { dietPlan, addDietItem, removeDietItem, loadDietPlan } = useUserProfile();
   const { 
-    completedMeals,
+    completedMeals, deleteMeal,
     saveCompletion,
     loadCompletionRecords, getDateKey,
   } = useData();
@@ -61,31 +61,37 @@ export const DietScreen = ({ navigation }) => {
     return translateIngredientUtil(name, currentLanguage);
   };
 
-  const saveCompletionStatus = async (date, itemType, itemIndex, completed, itemName, calories) => {
-    if (!userId) return;
-
-    const dateKey = getDateKey(date);
-    // ✨ 修正：使用 itemType 字段而不是 type（与 App1.js 一致）
-    const data = {
-      userId,
-      date: dateKey,
-      itemType,  // 修正：直接使用 itemType，不转换为 type
-      itemIndex,
-      completed,
-      itemName,
-      calories: calories || 0,
-    };
-
-    try {
-      await saveCompletion(data);
-    } catch (error) {
-      if (__DEV__) {
-        console.error('Error saving completion:', error);
-      }
-    }
+  const [mealError, setMealError] = useState('');
+  const toggleMeal = async (meal, index, checked) => {
+    setMealError('');
+    const result = await saveCompletion({
+      userId, date: dateKey, itemType: 'meal', itemIndex: index, mealKey: meal.mealKey,
+      completed: !checked, itemName: meal.foodName || meal.mealName || meal.meal,
+      calories: meal.calories ?? 0,
+    });
+    if (!result.success) setMealError(result.message);
   };
 
-
+  const confirmRemoveMeal = meal => {
+    const isZh = currentLanguage === 'zh';
+    const question = isZh ? '确定要删除这个食物吗？' : 'Delete this meal?';
+    const remove = async () => {
+      setMealError('');
+      try {
+        await deleteMeal(dateKey, meal.mealKey, () => removeDietItem(meal));
+      } catch (error) {
+        setMealError(error.message || (isZh ? '删除失败' : 'Could not delete meal'));
+      }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(question)) remove();
+    } else {
+      Alert.alert(isZh ? '确认删除' : 'Confirm deletion', question, [
+        { text: isZh ? '取消' : 'Cancel', style: 'cancel' },
+        { text: isZh ? '删除' : 'Delete', style: 'destructive', onPress: remove },
+      ]);
+    }
+  };
 
   // ✅ 手动添加食物
   const handleAddFood = async () => {
@@ -125,7 +131,7 @@ export const DietScreen = ({ navigation }) => {
           mealTime: newFood.mealType,
           ingredients: newFood.ingredients.trim(),
           calories: parseInt(newFood.calories) || 0,
-          recordedAt: new Date().toISOString(), // ✅ 添加记录时间
+          recordedAt: response.data?.recordedAt || new Date().toISOString(),
           source: 'record', // ✅ 标记来源
           isCustom: true,
         };
@@ -206,6 +212,7 @@ export const DietScreen = ({ navigation }) => {
 
         {/* Meal Cards */}
         <View style={styles.mealSection}>
+          {mealError ? <Text accessibilityRole="alert" style={styles.mealError}>{mealError}</Text> : null}
           {dietPlan.length > 0 ? dietPlan
             // ✨ 关键：根据选择的日期过滤饮食计划
             .filter(item => {
@@ -227,8 +234,7 @@ export const DietScreen = ({ navigation }) => {
               return true;
             })
             .map((mealItem, index) => {
-            const dateKey = getDateKey(new Date());
-            const isCompleted = completedMeals[dateKey]?.[index] || false;
+            const isCompleted = completedMeals[dateKey]?.[mealItem.mealKey] === true;
             
             let ingredientsList = [];
             try {
@@ -252,7 +258,7 @@ export const DietScreen = ({ navigation }) => {
             }
             
             return (
-              <View key={index} style={styles.newMealCard}>
+              <View key={mealItem.mealKey} style={styles.newMealCard}>
                 {/* 餐次标签 */}
                 <View style={styles.newMealBadge}>
                   <Text style={styles.newMealBadgeText}>
@@ -279,34 +285,9 @@ export const DietScreen = ({ navigation }) => {
                 {isEditMode && (
                   <TouchableOpacity 
                     style={styles.deleteButton}
-                    onPress={() => {
-                      Alert.alert(
-                        currentLanguage === 'zh' ? '确认删除' : 'Confirm Delete',
-                        currentLanguage === 'zh' ? '确定要删除这个食物吗？' : 'Are you sure you want to delete this meal?',
-                        [
-                          { text: currentLanguage === 'zh' ? '取消' : 'Cancel', style: 'cancel' },
-                          {
-                            text: currentLanguage === 'zh' ? '删除' : 'Delete',
-                            style: 'destructive',
-                            onPress: async () => {
-                              try {
-                                await removeDietItem(mealItem);
-                                Alert.alert(
-                                  currentLanguage === 'zh' ? '成功' : 'Success',
-                                  currentLanguage === 'zh' ? '已删除' : 'Deleted successfully'
-                                );
-                              } catch (error) {
-                                console.error('删除失败:', error);
-                                Alert.alert(
-                                  currentLanguage === 'zh' ? '删除失败' : 'Delete failed',
-                                  error.message
-                                );
-                              }
-                            }
-                          }
-                        ]
-                      );
-                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={(currentLanguage === 'zh' ? '删除 ' : 'Delete ') + mealItem.meal}
+                    onPress={() => confirmRemoveMeal(mealItem)}
                   >
                     <Text style={styles.deleteButtonText}>✕</Text>
                   </TouchableOpacity>
@@ -348,19 +329,11 @@ export const DietScreen = ({ navigation }) => {
                   <Text style={styles.newMealCalories}>{mealItem.calories || 0}kcal</Text>
                   <TouchableOpacity 
                     style={styles.newMealCheckButton}
-                    onPress={async () => {
-                      const newCompletedState = !(completedMeals[dateKey]?.[index]);
-                      
-                      const calories = (mealItem.calories && mealItem.calories > 0) ? mealItem.calories : 300;
-                      await saveCompletionStatus(
-                        new Date(),
-                        'meal', 
-                        index, 
-                        newCompletedState,
-                        mealItem.time || mealItem.mealTime || `餐次${index}`,
-                        calories
-                      );
-                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isCompleted }}
+                    aria-checked={isCompleted}
+                    accessibilityLabel={mealItem.foodName || mealItem.mealName || mealItem.meal}
+                    onPress={() => toggleMeal(mealItem, index, isCompleted)}
                   >
                     <Image
                       source={isCompleted
@@ -698,6 +671,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#a4ff3e',
   },
+  mealError: { color: '#ff8c8c', marginBottom: 8 },
   newMealCheckButton: {
     padding: 4,
   },

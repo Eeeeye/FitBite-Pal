@@ -129,7 +129,7 @@ export const AdminUserStatsEditorScreen = ({ route, navigation }) => {
   };
 
   const submitCompletion = async () => {
-    if (!completionForm.recordDate || completionForm.itemIndex === '') {
+    if (!completionForm.mealKey && (!completionForm.recordDate || completionForm.itemIndex === '')) {
       Alert.alert('提示', '请填写日期和项目索引');
       return;
     }
@@ -137,9 +137,11 @@ export const AdminUserStatsEditorScreen = ({ route, navigation }) => {
     try {
       setSubmitting(true);
       const payload = {
-        recordDate: completionForm.recordDate,
-        itemType: completionForm.itemType,
-        itemIndex: Number(completionForm.itemIndex),
+        ...(!completionForm.mealKey && {
+          recordDate: completionForm.recordDate,
+          itemType: completionForm.itemType,
+          itemIndex: Number(completionForm.itemIndex),
+        }),
         itemName: completionForm.itemName,
         calories: completionForm.calories === '' ? null : Number(completionForm.calories),
         completed: completionForm.completed,
@@ -309,9 +311,10 @@ export const AdminUserStatsEditorScreen = ({ route, navigation }) => {
 
         <SectionTitle title="训练 / 饮食完成记录" />
         <View style={styles.formCard}>
-          <FormInput label="日期" value={completionForm.recordDate} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, recordDate: value }))} />
-          <FormInput label="类型 (exercise/meal)" value={completionForm.itemType} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, itemType: value.trim() || 'exercise' }))} />
-          <FormInput label="项目索引" value={String(completionForm.itemIndex)} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, itemIndex: value }))} keyboardType="numeric" />
+          {completionForm.mealKey && <Text style={styles.inputLabel}>餐食来源 {completionForm.mealKey}</Text>}
+          <FormInput label="日期" value={completionForm.recordDate} editable={!completionForm.mealKey} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, recordDate: value }))} />
+          <FormInput label="类型 (exercise/meal)" value={completionForm.itemType} editable={!completionForm.mealKey} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, itemType: value.trim() || 'exercise' }))} />
+          <FormInput label="项目索引" value={String(completionForm.itemIndex)} editable={!completionForm.mealKey} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, itemIndex: value }))} keyboardType="numeric" />
           <FormInput label="项目名称" value={completionForm.itemName} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, itemName: value }))} />
           <FormInput label="热量" value={String(completionForm.calories)} onChangeText={(value) => setCompletionForm((prev) => ({ ...prev, calories: value }))} keyboardType="numeric" />
           <ToggleRow
@@ -331,9 +334,10 @@ export const AdminUserStatsEditorScreen = ({ route, navigation }) => {
             subtitle={`索引 ${record.itemIndex} / ${record.itemName || '未命名'} / ${record.completed ? '已完成' : '未完成'} / ${record.calories ?? 0} kcal`}
             onEdit={() => setCompletionForm({
               id: record.id,
+              mealKey: record.mealKey,
               recordDate: record.recordDate,
               itemType: record.itemType,
-              itemIndex: String(record.itemIndex),
+              itemIndex: record.itemIndex == null ? '' : String(record.itemIndex),
               itemName: record.itemName || '',
               calories: record.calories == null ? '' : String(record.calories),
               completed: !!record.completed,

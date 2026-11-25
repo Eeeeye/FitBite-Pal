@@ -19,6 +19,8 @@ jobs:
       CI: '1'
       EXPO_NO_TELEMETRY: '1'
       EXPO_OFFLINE: '1'
+      FITBITE_PUBLIC_RELEASE: '1'
+      EXPO_PUBLIC_API_URL: https://fitbite-ci.invalid/api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,8 +29,9 @@ jobs:
           cache: npm
           cache-dependency-path: FitBitePal-Mobile/package-lock.json
       - run: npm ci --no-audit --no-fund
+      - run: npm audit --omit=dev --audit-level=high
       - run: node --test tests/*.test.js
       - name: Export Android bundle
-        run: node node_modules/expo/bin/cli export --platform android --max-workers 2 --output-dir "$RUNNER_TEMP/fitbite-android"
+        run: node node_modules/expo/bin/cli export --clear --platform android --max-workers 2 --output-dir "$RUNNER_TEMP/fitbite-android"
       - name: Export iOS bundle
-        run: node node_modules/expo/bin/cli export --platform ios --max-workers 2 --output-dir "$RUNNER_TEMP/fitbite-ios"
+        run: node node_modules/expo/bin/cli export --clear --platform ios --max-workers 2 --output-dir "$RUNNER_TEMP/fitbite-ios"

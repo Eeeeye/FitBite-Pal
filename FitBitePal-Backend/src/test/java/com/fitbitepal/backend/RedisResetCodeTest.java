@@ -55,20 +55,20 @@ class RedisResetCodeTest {
 
     @Test
     void precheckPreservesCodeAndExactlyOneResetConsumesIt() throws Exception {
-        service.sendVerificationCode(address);
+        service.sendVerificationCode(1L, address);
         var message = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mail).send(message.capture());
         var match = Pattern.compile("\\b[0-9]{6}\\b").matcher(message.getValue().getText());
         assertThat(match.find()).isTrue();
         String code = match.group();
-        assertThat(service.consumeCode(address, "invalid")).isFalse();
-        assertThat(service.verifyCode(address, code)).isTrue();
+        assertThat(service.consumeCode(1L, address, "invalid")).isFalse();
+        assertThat(service.verifyCode(1L, address, code)).isTrue();
         assertThat(redis.getExpire(key)).isBetween(1L, 300L);
         var pool = Executors.newFixedThreadPool(2);
         var start = new CountDownLatch(1);
         java.util.concurrent.Callable<Boolean> consume = () -> {
             if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("start timed out");
-            return service.consumeCode(address, code);
+            return service.consumeCode(1L, address, code);
         };
         try {
             var first = pool.submit(consume);
@@ -79,54 +79,64 @@ class RedisResetCodeTest {
         } finally {
             pool.shutdownNow();
         }
-        assertThat(service.verifyCode(address, code)).isFalse();
+        assertThat(service.verifyCode(1L, address, code)).isFalse();
     }
 
     @Test
     void undeliveredCodeIsRemoved() {
         doThrow(new MailSendException("delivery unavailable")).when(mail).send(any(SimpleMailMessage.class));
-        assertThatThrownBy(() -> service.sendVerificationCode(address)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.sendVerificationCode(1L, address)).isInstanceOf(IllegalStateException.class);
         assertThat(redis.hasKey(key)).isFalse();
     }
 
     @Test
     void repeatedRequestKeepsExistingCodeAndSendsOneMessage() {
-        service.sendVerificationCode(address);
+        service.sendVerificationCode(1L, address);
         String issued = (String) redis.opsForHash().get(key, "code");
-        service.sendVerificationCode(address);
+        service.sendVerificationCode(1L, address);
         verify(mail, times(1)).send(any(SimpleMailMessage.class));
-        assertThat(service.verifyCode(address, issued)).isTrue();
+        assertThat(service.verifyCode(1L, address, issued)).isTrue();
     }
 
     @Test
     void incorrectSubmissionsShareOneBudgetAcrossBothSteps() {
-        service.sendVerificationCode(address);
+        service.sendVerificationCode(1L, address);
         String issued = (String) redis.opsForHash().get(key, "code");
         for (int i = 0; i < 4; i++) {
-            assertThat(service.verifyCode(address, "invalid")).isFalse();
+            assertThat(service.verifyCode(1L, address, "invalid")).isFalse();
         }
-        assertThat(service.consumeCode(address, "invalid")).isFalse();
-        assertThat(service.verifyCode(address, issued)).isFalse();
-        assertThat(service.consumeCode(address, issued)).isFalse();
-        service.sendVerificationCode(address);
+        assertThat(service.consumeCode(1L, address, "invalid")).isFalse();
+        assertThat(service.verifyCode(1L, address, issued)).isFalse();
+        assertThat(service.consumeCode(1L, address, issued)).isFalse();
+        service.sendVerificationCode(1L, address);
         verify(mail, times(1)).send(any(SimpleMailMessage.class));
     }
 
     @Test
     void liveCodeFromEarlierReleaseKeepsItsExpiryAndWorksOnce() {
         redis.opsForValue().set(key, "123456", Duration.ofSeconds(80));
-        assertThat(service.verifyCode(address, "123456")).isTrue();
+        assertThat(service.verifyCode(1L, address, "123456")).isTrue();
         assertThat(redis.getExpire(key)).isBetween(1L, 80L);
-        assertThat(service.consumeCode(address, "123456")).isTrue();
-        assertThat(service.consumeCode(address, "123456")).isFalse();
+        assertThat(service.consumeCode(1L, address, "123456")).isTrue();
+        assertThat(service.consumeCode(1L, address, "123456")).isFalse();
+    }
+
+    @Test
+    void aNewRegistrationAtTheSameAddressCannotUseTheOldOwnersCode() {
+        service.sendVerificationCode(1L, address);
+        String code = (String) redis.opsForHash().get(key, "code");
+        assertThat(service.consumeCode(2L, address, code)).isFalse();
+        assertThat(service.verifyCode(1L, address, code)).isTrue();
+        service.revoke(address);
+        assertThat(redis.hasKey(key)).isFalse();
     }
 
     @Test
     void expiredCodeCannotBeVerifiedOrConsumed() {
-        service.sendVerificationCode(address);
+        service.sendVerificationCode(1L, address);
         String code = (String) redis.opsForHash().get(key, "code");
         assertThat(redis.expire(key, Duration.ZERO)).isTrue();
-        assertThat(service.verifyCode(address, code)).isFalse();
-        assertThat(service.consumeCode(address, code)).isFalse();
+        assertThat(service.verifyCode(1L, address, code)).isFalse();
+        assertThat(service.consumeCode(1L, address, code)).isFalse();
     }
 }

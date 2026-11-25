@@ -1,0 +1,175 @@
+{
+  "measured_on": "2026-11-25",
+  "timezone": "Asia/Shanghai",
+  "scope": "Single macOS ARM64 host, loopback Web/API candidate, native builds exported without signing.",
+  "previous_schema_revision": "14581c91fdf70d00b3df0e35123be0c59cfd60a7",
+  "dependencies_under_test": {
+    "mysql": "8.0.44",
+    "redis": "7.2.7",
+    "smtp_capture": "Mailpit 1.27.4"
+  },
+  "artifacts": {
+    "backend_sha256": "dd02f66e637dad21fdc8a1bb43fd4ef3917b6c2fc64ab14d3ff8ac07a6309754",
+    "baseline_sha256": "897df23d7158fa8bbbc0f1ce0c9cc3504056fc0051cce8ed5c588a12fdd1e544",
+    "web_tree_sha256": "36483dc77aaf1ee951a0c9c03e3c0271c46e51d72f81ad2b58dbb80e2916c0a8",
+    "web_lock_sha256": "2cba5218851c186e79c9853f593a7802f14c4fcad727c4d3bf73550959b19a30",
+    "native_exports": {
+      "ios": {
+        "hermes_sha256": "1bf1855cb7cea22a93adae826034c75c7c07d1951f5fc9cdf2c63c57cbfd1834",
+        "referenced_assets_verified": 63
+      },
+      "android": {
+        "hermes_sha256": "cd84dba7274cd2601009470f66f06ba12c24dc33bea7f4e30b8c9c275e45a5ec",
+        "referenced_assets_verified": 63
+      }
+    }
+  },
+  "test_results": {
+    "maven_verify": {
+      "tests": 63,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "mobile_node_tests": {
+      "tests": 28,
+      "pass": 28,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "browser_journeys_passed": [
+      "goals saved, baseline checked, restored after reload",
+      "custom meal created, checked, restored after reload, removed with its completion",
+      "account and legacy chat cleanup, sign-out credential removal and second-account isolation",
+      "settings account deletion, credential and chat removal, other member still accessible",
+      "bilingual deletion page, cancellation and incorrect password keep the account active",
+      "confirmed webpage deletion, old token and login rejected, control member and data retained"
+    ],
+    "seeded_member_browser_check": "Regular member login, seven recorded weights, weight and body-fat goals, and diet page.",
+    "release_workflow_browser_step": {
+      "local_run": "Six journeys passed using a new schema, DML-only application user, separate Redis and local Chromium.",
+      "hosted_github_actions_run": "pending"
+    }
+  },
+  "jwt_cold_start": {
+    "profile": {
+      "fresh_processes": 3,
+      "concurrent_clients": 32,
+      "first_batch_http_200": 96,
+      "followup_profile_http_200": 96,
+      "first_batch_p95_ms_by_trial": [
+        236.64,
+        666.02,
+        289.94
+      ]
+    },
+    "login": {
+      "fresh_processes": 2,
+      "concurrent_clients": 32,
+      "first_batch_http_200": 64,
+      "followup_profile_http_200": 64,
+      "first_batch_p95_ms_by_trial": [
+        448.87,
+        445.42
+      ]
+    }
+  },
+  "migration_and_recovery": {
+    "previous_schema": "V9",
+    "candidate_schema": "V11",
+    "redis_unavailable": {
+      "readiness_http": 503,
+      "liveness_http": 200
+    },
+    "monitor_mailbox": "Local SMTP capture",
+    "candidate_reads_and_writes": true,
+    "failure_to_alert_mail_seconds": 44.9,
+    "recovery_to_resolved_mail_seconds": 20.1,
+    "previous_binary_restored_pre_release_state": true,
+    "restored_row_dump_sha256": "253a999c575c20a907b14726227ccc4c700a737aa2f930a482af9868f3376db6",
+    "restore_sql_seconds": 0.072,
+    "restored_login_training_progress_checkins_meal_goal": true,
+    "restore_timing_scope": "SQL import of the small synthetic fixture only."
+  },
+  "dependency_advisories": {
+    "previous_jar_osv": {
+      "scanned_at": "2026-11-25T13:47:52.168792+00:00",
+      "jar_sha256": "dcc6f749e53de574e170ae45a9b2e63d4d6d71da526d214fee34af4c42637e0f",
+      "libraries": 95,
+      "coordinates": 95,
+      "affected_coordinates": 24,
+      "distinct_advisories": 115
+    },
+    "previous_client_npm_audit_omit_dev": {
+      "info": 0,
+      "low": 1,
+      "moderate": 9,
+      "high": 25,
+      "critical": 2,
+      "total": 37
+    },
+    "assembled_jar_osv": {
+      "scanned_at": "2026-11-25T13:51:02.447868+00:00",
+      "jar_sha256": "dd02f66e637dad21fdc8a1bb43fd4ef3917b6c2fc64ab14d3ff8ac07a6309754",
+      "libraries": 125,
+      "coordinates": 125,
+      "affected_coordinates": 0,
+      "distinct_advisories": 0
+    },
+    "npm_audit_omit_dev": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "npm_audit_all": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "environment_followup": [
+    "Signed iOS and Android installations and upgrades on physical devices",
+    "Public HTTPS, production SMTP delivery, external AI integration and real on-call alert delivery",
+    "Hosted CI run and production-scale capacity and recovery objectives"
+  ],
+  "transactional_cache": {
+    "forced_write_delay_ms": 500,
+    "stale_immediate_reads_before": 3,
+    "stale_immediate_reads_after": 0,
+    "trials_per_implementation": 3
+  },
+  "home_load": {
+    "version": "after",
+    "scenario": "home",
+    "concurrency": 32,
+    "samples": 26805,
+    "seconds": 30,
+    "requests": 107220,
+    "bytes": 58217091,
+    "errors": 0,
+    "errorSample": [],
+    "elapsed": 30.036543041999998,
+    "journeysPerSecond": 892.4129505355745,
+    "p50": 31.134415999998964,
+    "p95": 71.45620899999994,
+    "p99": 108.33100000000013,
+    "selects": 159378,
+    "httpRequestsPerSecond": 3569.651802142298,
+    "fixtureCounts": {
+      "members": 32,
+      "completions": 17280,
+      "training_plans": 1632,
+      "checkins": 2848
+    },
+    "rounds": 1,
+    "scope": "Warm-cache local API, 64 warm-up visits, 4 GETs per measured home visit, excludes UI rendering and external networks.",
+    "runtime": "Apple M5, 24 GiB RAM, JDK 21, 384 MiB Java heap, Hikari max 20"
+  }
+}

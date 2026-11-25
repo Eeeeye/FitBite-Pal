@@ -51,6 +51,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 允许跨域预检请求 (OPTIONS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/account-deletion.html", "/account-deletion.js").permitAll()
                         // 公开接口白名单
                         .requestMatchers(
                                 "/auth/**",
@@ -63,6 +64,8 @@ public class SecurityConfig {
                                 "/pose/health",
                                 // Actuator 健康检查
                                 "/actuator/health",
+                                "/actuator/health/liveness",
+                                "/actuator/health/readiness",
                                 "/actuator/info",
                                 // 管理后台
                                 "/admin", "/admin/", "/admin/index.html",

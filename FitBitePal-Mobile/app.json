@@ -2,7 +2,7 @@
   "expo": {
     "name": "FitBitePal-Mobile",
     "slug": "FitBitePal-Mobile",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fitbitepal.mobile",
-      "buildNumber": "1.0.0",
+      "buildNumber": "1.1.0",
       "infoPlist": {
         "NSCameraUsageDescription": "FitBite Pal需要访问相机来识别食物和分析运动姿态",
         "NSPhotoLibraryUsageDescription": "FitBite Pal需要访问相册来选择图片进行分析",
@@ -23,7 +23,6 @@
         "NSMicrophoneUsageDescription": "FitBite Pal需要访问麦克风来录制训练视频（可选）",
         "NSUserNotificationsUsageDescription": "FitBite Pal需要发送通知来提醒您训练和用餐",
         "UIBackgroundModes": [
-          "remote-notification",
           "remote-notification"
         ]
       },
@@ -36,7 +35,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.fitbitepal.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -46,30 +45,21 @@
         "SCHEDULE_EXACT_ALARM",
         "POST_NOTIFICATIONS",
         "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM",
-        "POST_NOTIFICATIONS",
-        "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE"
-      ],
-      "usesCleartextTraffic": true
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "owner": "eeeeye",
     "plugins": [
+      "expo-secure-store",
       [
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true,
-            "networkInspector": true
+            "usesCleartextTraffic": false,
+            "networkInspector": false
           }
         }
       ]

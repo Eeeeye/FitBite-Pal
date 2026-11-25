@@ -29,6 +29,13 @@ public interface CompletionRecordRepository extends JpaRepository<CompletionReco
     Optional<CompletionRecord> findByUserIdAndRecordDateAndItemTypeAndItemIndex(
             Long userId, LocalDate recordDate, String itemType, Integer itemIndex);
     
+    @Modifying
+    @Query("delete from CompletionRecord r where r.userId = :userId and r.mealKey = :mealKey")
+    void deleteMeal(Long userId, String mealKey);
+
+    Optional<CompletionRecord> findByUserIdAndRecordDateAndItemTypeAndMealKey(
+            Long userId, LocalDate date, String type, String mealKey);
+
     /**
      * 查找用户某个日期范围的完成记录
      */
@@ -104,14 +111,37 @@ public interface CompletionRecordRepository extends JpaRepository<CompletionReco
         long getCompletedMeals();
     }
 
-    @Query("""
-            select r.itemIndex as itemIndex, r.completed as completed from CompletionRecord r
-            where r.userId = :userId and r.itemType = 'meal' and r.recordDate = :date
-            """)
+    // Old clients use the current plan-time order followed by manual record ID order.
+    // Keep unmappable historical rows out of the current menu's positional namespace.
+    @Query(value = """
+            select c.id as recordId, c.meal_key as mealKey, c.completed as completed,
+                case when p.id is not null then (
+                    select count(*) from diet_plans prior where prior.user_id = c.user_id
+                    and prior.plan_date = c.record_date and prior.hidden = false
+                    and (prior.meal_time < p.meal_time or (prior.meal_time = p.meal_time and prior.id < p.id)))
+                when d.id is not null then (
+                    select count(*) from diet_plans other where other.user_id = c.user_id
+                    and other.plan_date = c.record_date and other.hidden = false) + (
+                    select count(*) from diet_records prior where prior.user_id = c.user_id
+                    and prior.recorded_at >= c.record_date and prior.recorded_at < timestampadd(day, 1, c.record_date) and prior.id < d.id)
+                when c.meal_key is null and not exists (
+                    select 1 from diet_plans other where other.user_id = c.user_id
+                    and other.plan_date = c.record_date and other.hidden = false) and not exists (
+                    select 1 from diet_records other where other.user_id = c.user_id
+                    and other.recorded_at >= c.record_date and other.recorded_at < timestampadd(day, 1, c.record_date)) then c.item_index end as itemIndex
+            from completion_records c
+            left join diet_plans p on p.user_id = c.user_id and p.plan_date = c.record_date and p.hidden = false
+                and c.meal_key = concat('plan:', p.id)
+            left join diet_records d on d.user_id = c.user_id and d.recorded_at >= c.record_date and d.recorded_at < timestampadd(day, 1, c.record_date)
+                and c.meal_key = concat('record:', d.id)
+            where c.user_id = :userId and c.item_type = 'meal' and (:date is null or c.record_date = :date)
+            """, nativeQuery = true)
     List<MealFlag> mealFlags(Long userId, LocalDate date);
 
     interface MealFlag {
-        int getItemIndex();
+        Long getRecordId();
+        String getMealKey();
+        Integer getItemIndex();
         boolean getCompleted();
     }
 

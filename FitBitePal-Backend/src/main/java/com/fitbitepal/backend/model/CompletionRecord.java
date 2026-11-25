@@ -15,7 +15,10 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "completion_records", 
-       uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "record_date", "item_type", "item_index"}))
+       uniqueConstraints = {
+           @UniqueConstraint(columnNames = {"user_id", "record_date", "item_type", "item_index"}),
+           @UniqueConstraint(name = "uk_completion_meal", columnNames = {"user_id", "record_date", "item_type", "meal_key"})
+       })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -35,8 +38,21 @@ public class CompletionRecord {
     @Column(name = "item_type", nullable = false, length = 20)
     private String itemType;  // "exercise" 或 "meal"
     
-    @Column(name = "item_index", nullable = false)
-    private Integer itemIndex;  // 项目在列表中的索引
+    // Persisted only for exercises and legacy meals. Bound meals are unique by mealKey.
+    @Column(name = "item_index")
+    private Integer itemIndex;
+
+    @Column(name = "meal_key", length = 40)
+    private String mealKey;
+
+    // The old mobile API reads the position in the current visible menu.
+    @Transient
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Integer displayIndex;
+
+    public Integer getItemIndex() {
+        return displayIndex == null ? itemIndex : displayIndex;
+    }
     
     @Column(nullable = false)
     private Boolean completed;  // 是否完成

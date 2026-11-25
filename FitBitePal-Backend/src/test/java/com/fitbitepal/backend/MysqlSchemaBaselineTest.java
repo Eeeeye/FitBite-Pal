@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -27,9 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "logging.file.name=target/schema-validation.log"
 })
 class MysqlSchemaBaselineTest {
-    @MockBean AdminInitializer admins;
-    @MockBean FoodItemInitializer food;
-    @MockBean ExerciseInitializer exercises;
+    @MockitoBean AdminInitializer admins;
+    @MockitoBean FoodItemInitializer food;
+    @MockitoBean ExerciseInitializer exercises;
 
     @Autowired Environment environment;
     @Autowired JdbcTemplate jdbc;

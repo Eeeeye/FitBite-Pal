@@ -32,7 +32,7 @@ The repository is organized as a full-stack project:
 ### Backend
 
 - Java 17+
-- Spring Boot 3.2
+- Spring Boot 4.1.3
 - Spring Security with JWT
 - Spring Data JPA / Hibernate
 - MySQL 8.0
@@ -238,9 +238,11 @@ npx eas build -p ios --profile preview
 
 Run `mvn verify` in `FitBitePal-Backend` to build the Java 17 application and run its HTTP and persistence regression tests. The default tests use an isolated H2 database. The backend CI job runs the same flows against disposable MySQL 8 and enables Redis 7 tests for expiring and atomically consuming reset codes.
 
-A fresh Compose volume runs the MySQL 8 baseline once. It creates the 13 application tables, including the V8 pose fields and V9 lookup indexes. Spring starts in schema validation mode. For an empty database managed outside Compose, select the target database and run the same SQL before starting the backend. [MySQL baseline](FitBitePal-Backend/src/main/resources/db/baseline/mysql8.sql)
+A fresh Compose volume runs the MySQL 8 baseline once. It creates the 13 application tables, including the V10 meal identities and V11 goal measurement fields. Spring starts in schema validation mode. For an empty database managed outside Compose, select the target database and run the same SQL before starting the backend. [MySQL baseline](FitBitePal-Backend/src/main/resources/db/baseline/mysql8.sql)
 
-For an existing deployment at V7, take a backup, then apply V8 once and V9 to the application database before starting the updated service. The MySQL image only processes initialization files when its data directory is empty. [V8 pose migration](FitBitePal-Backend/src/main/resources/db/migration/V8__pose_session_lifecycle.sql) · [V9 index migration](FitBitePal-Backend/src/main/resources/db/migration/V9__daily_lookup_indexes.sql)
+For a populated database, back up and stop the old application writers. Upgrade from the installed version in order. A V7 database needs V8, V9, V10 and V11. Start the updated backend before distributing the new mobile app. The MySQL image runs the baseline only for an empty data directory. [V8 pose sessions](FitBitePal-Backend/src/main/resources/db/migration/V8__pose_session_lifecycle.sql) · [V9 daily indexes](FitBitePal-Backend/src/main/resources/db/migration/V9__daily_lookup_indexes.sql) · [V10 meal identity](FitBitePal-Backend/src/main/resources/db/migration/V10__stable_meal_completion_keys.sql) · [V11 goal baselines](FitBitePal-Backend/src/main/resources/db/migration/V11__goal_measurement_baselines.sql)
+
+Meal completion keys identify a dated recommendation (`plan:<id>`) or a logged food (`record:<id>`) within its owner's menu. V10 ties historical rows to a source only when owner, date, creation time, label and calories identify it unambiguously in both directions. Unresolved logs retain their original index and count toward history. Old clients can write a visible meal when its position and identifying details still match uniquely. A stale or ambiguous selection returns a validation error.
 
 When reusing a MySQL volume, provision the application account named by `MYSQL_USER` on the FitBite database before switching the backend credentials. The MySQL image provisions this account automatically for an empty volume.
 
@@ -256,3 +258,5 @@ When reusing a MySQL volume, provision the application account named by `MYSQL_U
 ## License
 
 This project is for coursework and learning purposes.
+
+正式候选的构建、数据迁移、告警和恢复演练见[发布候选验收](docs/release-candidate.md)。

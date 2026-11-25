@@ -10,11 +10,12 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
-  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth, useData, useAppState, useUserProfile } from '../contexts';
 import { progressLoadState } from '../utils/screenReads';
+import { buildGoalPatch } from '../utils/measurementGoals';
+import { updateMeasurementGoals } from '../api/user';
 
 export const ProgressScreen = ({ navigation }) => {
   const { userId } = useAuth();
@@ -32,10 +33,15 @@ export const ProgressScreen = ({ navigation }) => {
   
   // ✅ 目标编辑相关状态
   const [showGoalModal, setShowGoalModal] = useState(false);
-  const [goalWeightTarget, setGoalWeightTarget] = useState('70');  // 目标体重
-  const [goalBodyFatTarget, setGoalBodyFatTarget] = useState('18'); // 目标体脂率
-  const [tempWeightTarget, setTempWeightTarget] = useState('70');
-  const [tempBodyFatTarget, setTempBodyFatTarget] = useState('18');
+  const [tempWeightTarget, setTempWeightTarget] = useState('');
+  const [tempBodyFatTarget, setTempBodyFatTarget] = useState('');
+  const [legacyGoals, setLegacyGoals] = useState({});
+  const [originalGoals, setOriginalGoals] = useState({});
+  const [savingGoals, setSavingGoals] = useState(false);
+  const [goalError, setGoalError] = useState('');
+  const goals = statsData.goals || {};
+  const goalWeightTarget = goals.weight?.target;
+  const isZh = currentLanguage === 'zh';
 
   const todayKey = getDateKey();
   useFocusEffect(useCallback(() => {
@@ -50,92 +56,55 @@ export const ProgressScreen = ({ navigation }) => {
   }, [loadProgress, todayKey, attempt]));
 
   useEffect(() => {
-    if (userId) loadGoals();
+    let current = true;
+    setLegacyGoals({});
+    if (userId != null) {
+      AsyncStorage.multiGet([`weightGoal_${userId}`, `bodyFatGoal_${userId}`])
+        .then(([[, weight], [, bodyFat]]) => {
+          if (current) setLegacyGoals({ weight, bodyFat });
+        }).catch(() => {});
+    }
+    return () => { current = false; };
   }, [userId]);
 
-  useEffect(() => {
-    if (statsData.goalWeight) {
-      const nextGoalWeight = String(statsData.goalWeight);
-      setGoalWeightTarget(nextGoalWeight);
-      setTempWeightTarget(nextGoalWeight);
-    }
-    if (statsData.goalBodyFat) {
-      const nextGoalBodyFat = String(statsData.goalBodyFat);
-      setGoalBodyFatTarget(nextGoalBodyFat);
-      setTempBodyFatTarget(nextGoalBodyFat);
-    }
-  }, [statsData.goalWeight, statsData.goalBodyFat]);
-
-  // ✅ 从AsyncStorage加载目标
-  const loadGoals = async () => {
-    try {
-      const savedWeightGoal = await AsyncStorage.getItem(`weightGoal_${userId}`);
-      const savedBodyFatGoal = await AsyncStorage.getItem(`bodyFatGoal_${userId}`);
-      
-      if (savedWeightGoal && !statsData.goalWeight) {
-        setGoalWeightTarget(savedWeightGoal);
-        setTempWeightTarget(savedWeightGoal);
-      }
-      if (savedBodyFatGoal && !statsData.goalBodyFat) {
-        setGoalBodyFatTarget(savedBodyFatGoal);
-        setTempBodyFatTarget(savedBodyFatGoal);
-      }
-    } catch (error) {
-      console.error('加载目标失败:', error);
-    }
+  const openGoals = () => {
+    const original = { weight: goals.weight?.target ?? null, bodyFat: goals.bodyFat?.target ?? null };
+    setOriginalGoals(original);
+    setTempWeightTarget(String(original.weight ?? legacyGoals.weight ?? ''));
+    setTempBodyFatTarget(String(original.bodyFat ?? legacyGoals.bodyFat ?? ''));
+    setGoalError('');
+    setShowGoalModal(true);
   };
 
-  // ✅ 保存目标到AsyncStorage
   const saveGoals = async () => {
+    let patch;
     try {
-      await AsyncStorage.setItem(`weightGoal_${userId}`, tempWeightTarget);
-      await AsyncStorage.setItem(`bodyFatGoal_${userId}`, tempBodyFatTarget);
-      
-      setGoalWeightTarget(tempWeightTarget);
-      setGoalBodyFatTarget(tempBodyFatTarget);
-      setShowGoalModal(false);
-      
-      Alert.alert(
-        currentLanguage === 'zh' ? '保存成功' : 'Saved',
-        currentLanguage === 'zh' ? '目标已更新' : 'Goals updated'
-      );
+      patch = buildGoalPatch(originalGoals, tempWeightTarget, tempBodyFatTarget);
     } catch (error) {
-      console.error('保存目标失败:', error);
+      setGoalError(error.message === 'weight'
+        ? (isZh ? '请输入 30 至 300 公斤的目标体重，或留空。' : 'Enter a target weight of 30–300 kg, or leave it blank.')
+        : (isZh ? '请输入大于 0 且不超过 100 的体脂率，或留空。' : 'Enter a body fat percentage above 0 and at most 100, or leave it blank.'));
+      return;
     }
-  };
-
-  // ✅ 计算减重进度百分比
-  const calculateWeightProgress = () => {
-    const currentWeight = statsData.currentWeight || userProfile?.weight || 0;
-    const targetWeight = parseFloat(goalWeightTarget) || 70;
-    
-    if (currentWeight <= 0) return 0;
-    
-    // 如果当前体重已达到或低于目标，返回100%
-    if (currentWeight <= targetWeight) return 100;
-    
-    // 假设起始体重比目标重20kg作为基准（可以根据实际调整）
-    const startWeight = targetWeight + 20;
-    const progress = ((startWeight - currentWeight) / (startWeight - targetWeight)) * 100;
-    
-    return Math.min(100, Math.max(0, progress));
-  };
-
-  // ✅ 计算体脂率进度百分比
-  const calculateBodyFatProgress = () => {
-    const currentBodyFat = statsData.bodyFat || userProfile?.bodyFatRate || 0;
-    const targetBodyFat = parseFloat(goalBodyFatTarget) || 18;
-    
-    if (currentBodyFat <= 0) return 0;
-    
-    // 如果当前体脂率已达到或低于目标，返回100%
-    if (currentBodyFat <= targetBodyFat) return 100;
-    
-    // 假设起始体脂率比目标高10%作为基准
-    const startBodyFat = targetBodyFat + 10;
-    const progress = ((startBodyFat - currentBodyFat) / (startBodyFat - targetBodyFat)) * 100;
-    
-    return Math.min(100, Math.max(0, progress));
+    setSavingGoals(true);
+    setGoalError('');
+    try {
+      if (Object.keys(patch).length > 0) {
+        const response = await updateMeasurementGoals(userId, patch);
+        if (!response.success || !response.data) throw new Error('Goal update failed');
+        dispatch({ status: 'ready', updatedAt: new Date(), snapshot: {
+          ...snapshot, statistics: { ...statsData, goals: response.data },
+        } });
+        setAttempt(previous => previous + 1);
+      }
+      setLegacyGoals({});
+      AsyncStorage.multiRemove([`weightGoal_${userId}`, `bodyFatGoal_${userId}`]).catch(() => {});
+      setShowGoalModal(false);
+    } catch {
+      setGoalError(isZh ? '保存失败，请重试。' : 'Could not save your goals. Please retry.');
+    } finally {
+      setSavingGoals(false);
+    }
   };
 
   // ✅ 计算营养目标进度（基于今日完成的餐次）
@@ -156,24 +125,12 @@ export const ProgressScreen = ({ navigation }) => {
   };
 
   // ✅ 检查目标是否达成
-  const isWeightGoalAchieved = () => {
-    const currentWeight = statsData.currentWeight || userProfile?.weight || 0;
-    const targetWeight = parseFloat(goalWeightTarget) || 70;
-    return currentWeight > 0 && currentWeight <= targetWeight;
-  };
-
-  const isBodyFatGoalAchieved = () => {
-    const currentBodyFat = statsData.bodyFat || userProfile?.bodyFatRate || 0;
-    const targetBodyFat = parseFloat(goalBodyFatTarget) || 18;
-    return currentBodyFat > 0 && currentBodyFat <= targetBodyFat;
-  };
-
   const isNutritionGoalAchieved = () => {
     return calculateNutritionProgress() >= 100;
   };
 
-  const displayCurrentWeight = statsData.currentWeight || userProfile?.weight || 0;
-  const displayBodyFat = statsData.bodyFat || userProfile?.bodyFatRate || 0;
+  const displayCurrentWeight = statsData.currentWeight;
+  const displayBodyFat = statsData.bodyFat;
   const displayAvgCalorieBurn = statsData.avgCalorieBurn || userProfile?.bmr || 0;
   const displayNutritionScore = statsData.nutritionScore || Math.round(calculateNutritionProgress());
   const hasRecordedProgress =
@@ -299,19 +256,13 @@ export const ProgressScreen = ({ navigation }) => {
                 {displayBodyFat ? `${displayBodyFat.toFixed(1)}%` : '--'}
               </Text>
               <Text style={styles.statLabel}>
-                {currentLanguage === 'zh' ? '体脂率' : 'Body fat rate'}
+                {isZh ? '体脂率（估算）' : 'Body fat (estimated)'}
               </Text>
               <View style={styles.statChange}>
-                <Image
-                  source={statsData.bodyFatChange < 0
-                    ? require('../../assets/images/273221eef94acfe2a22b329527cf2c18.png')
-                    : require('../../assets/images/82a1b37f45b5014ef813b00f07e36679.png')
-                  }
-                  style={styles.changeIcon}
-                  resizeMode="contain"
-                />
                 <Text style={styles.changeText}>
-                  {Math.abs(statsData.bodyFatChange || 0).toFixed(1)}% ({currentLanguage === 'zh' ? '7天' : '7 days'})
+                  {statsData.bodyFatChange == null
+                    ? (isZh ? '暂无历史体脂对比' : 'No prior estimate')
+                    : `${statsData.bodyFatChange > 0 ? '+' : ''}${statsData.bodyFatChange.toFixed(1)} ${isZh ? '个百分点' : 'pp'} · ${statsData.bodyFatChangeSince}`}
                 </Text>
               </View>
             </View>
@@ -378,7 +329,7 @@ export const ProgressScreen = ({ navigation }) => {
               {currentLanguage === 'zh' ? '体重趋势' : 'Weight Trend'}
             </Text>
             <Text style={styles.goalText}>
-              {currentLanguage === 'zh' ? `目标: ${goalWeightTarget}kg` : `Goal: ${goalWeightTarget}kg`}
+              {goalWeightTarget != null ? (isZh ? `目标 ${goalWeightTarget} kg` : `Goal ${goalWeightTarget} kg`) : ''}
             </Text>
           </View>
           <View style={styles.weightTrendUnderline} />
@@ -726,11 +677,9 @@ export const ProgressScreen = ({ navigation }) => {
             </Text>
             <TouchableOpacity 
               style={styles.editGoalButton}
-              onPress={() => {
-                setTempWeightTarget(goalWeightTarget);
-                setTempBodyFatTarget(goalBodyFatTarget);
-                setShowGoalModal(true);
-              }}
+              onPress={openGoals}
+              accessibilityLabel={isZh ? '编辑目标' : 'Edit goals'}
+              disabled={status === 'loading'}
             >
               <Image
                 source={require('../../assets/images/a4073118235180a9ab71a76225f32491.png')}
@@ -741,45 +690,8 @@ export const ProgressScreen = ({ navigation }) => {
           </View>
           <View style={styles.divider} />
           
-          {/* 减重目标 */}
-          <View style={styles.progressItem}>
-            <View style={styles.progressLabelRow}>
-              <Text style={styles.progressLabel}>
-                {currentLanguage === 'zh' ? '减重目标' : 'Weight Loss Target'}
-              </Text>
-              {isWeightGoalAchieved() && (
-                <Text style={styles.achievedBadge}>✓</Text>
-              )}
-            </View>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${calculateWeightProgress()}%` }]} />
-            </View>
-            <Text style={styles.progressValue}>
-              {(statsData.currentWeight || userProfile?.weight) 
-                ? `${(statsData.currentWeight || userProfile?.weight).toFixed(1)} kg → ${goalWeightTarget} kg` 
-                : `-- kg → ${goalWeightTarget} kg`}
-            </Text>
-          </View>
-
-          {/* 体脂率目标 */}
-          <View style={styles.progressItem}>
-            <View style={styles.progressLabelRow}>
-              <Text style={styles.progressLabel}>
-                {currentLanguage === 'zh' ? '体脂率目标' : 'Body Fat Rate Target'}
-              </Text>
-              {isBodyFatGoalAchieved() && (
-                <Text style={styles.achievedBadge}>✓</Text>
-              )}
-            </View>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${calculateBodyFatProgress()}%` }]} />
-            </View>
-            <Text style={styles.progressValue}>
-              {(statsData.bodyFat || userProfile?.bodyFatRate)
-                ? `${(statsData.bodyFat || userProfile?.bodyFatRate).toFixed(1)} % → ${goalBodyFatTarget} %`
-                : `-- % → ${goalBodyFatTarget} %`}
-            </Text>
-          </View>
+          <MeasurementGoal label={isZh ? '减重目标' : 'Weight loss target'} metric={goals.weight} unit="kg" isZh={isZh} />
+          <MeasurementGoal label={isZh ? '体脂率目标（估算）' : 'Body fat target (estimated)'} metric={goals.bodyFat} unit="%" isZh={isZh} />
 
           {/* 营养目标 */}
           <View style={styles.progressItem}>
@@ -811,7 +723,7 @@ export const ProgressScreen = ({ navigation }) => {
         visible={showGoalModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowGoalModal(false)}
+        onRequestClose={() => { if (!savingGoals) setShowGoalModal(false); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.goalModalContainer}>
@@ -819,6 +731,9 @@ export const ProgressScreen = ({ navigation }) => {
               {currentLanguage === 'zh' ? '设定目标' : 'Set Goals'}
             </Text>
             
+            {((originalGoals.weight == null && legacyGoals.weight) || (originalGoals.bodyFat == null && legacyGoals.bodyFat)) ? (
+              <Text style={styles.goalHelp}>{isZh ? '已填入本机旧目标，保存后可在其他设备查看。' : 'Your previous on-device targets are filled in. Save to sync them across devices.'}</Text>
+            ) : null}
             {/* 减重目标输入 */}
             <View style={styles.goalInputGroup}>
               <Text style={styles.goalInputLabel}>
@@ -829,7 +744,7 @@ export const ProgressScreen = ({ navigation }) => {
                 value={tempWeightTarget}
                 onChangeText={setTempWeightTarget}
                 keyboardType="decimal-pad"
-                placeholder="70"
+                placeholder={isZh ? '留空可清除' : 'Leave blank to clear'}
                 placeholderTextColor="#666"
               />
             </View>
@@ -844,7 +759,7 @@ export const ProgressScreen = ({ navigation }) => {
                 value={tempBodyFatTarget}
                 onChangeText={setTempBodyFatTarget}
                 keyboardType="decimal-pad"
-                placeholder="18"
+                placeholder={isZh ? '留空可清除' : 'Leave blank to clear'}
                 placeholderTextColor="#666"
               />
             </View>
@@ -858,10 +773,12 @@ export const ProgressScreen = ({ navigation }) => {
               </Text>
             </View>
 
+            {goalError ? <Text accessibilityRole="alert" style={styles.goalError}>{goalError}</Text> : null}
             {/* 按钮区域 */}
             <View style={styles.goalModalButtons}>
               <TouchableOpacity 
                 style={styles.goalCancelButton}
+                disabled={savingGoals}
                 onPress={() => setShowGoalModal(false)}
               >
                 <Text style={styles.goalCancelButtonText}>
@@ -870,10 +787,11 @@ export const ProgressScreen = ({ navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.goalSaveButton}
+                disabled={savingGoals}
                 onPress={saveGoals}
               >
                 <Text style={styles.goalSaveButtonText}>
-                  {currentLanguage === 'zh' ? '保存' : 'Save'}
+                  {savingGoals ? (isZh ? '保存中…' : 'Saving…') : (isZh ? '保存' : 'Save')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -884,7 +802,34 @@ export const ProgressScreen = ({ navigation }) => {
   );
 };
 
+function MeasurementGoal({ label, metric, unit, isZh }) {
+  const target = metric?.target;
+  const progress = metric?.percent;
+  return (
+    <View style={styles.progressItem}>
+      <View style={styles.progressLabelRow}>
+        <Text style={styles.progressLabel}>{label}</Text>
+        {metric?.achieved && <Text style={styles.achievedBadge}>✓ {isZh ? '已达成' : 'Achieved'}</Text>}
+      </View>
+      {progress != null && (
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${progress}%` }]} />
+        </View>
+      )}
+      <Text style={styles.progressValue}>
+        {target == null ? (isZh ? '尚未设定目标' : 'No target set')
+          : progress == null ? (isZh ? `目标 ${target} ${unit} · 等待测量` : `Target ${target} ${unit} · awaiting measurement`)
+          : (isZh
+            ? `起点 ${metric.start} · 当前 ${metric.current} · 目标 ${target} ${unit}（${progress}%）`
+            : `Start ${metric.start} · Current ${metric.current} · Target ${target} ${unit} (${progress}%)`)}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  goalError: { color: '#ff8282', marginBottom: 10 },
+  goalHelp: { color: '#bbb', marginBottom: 12 },
   container: {
     flex: 1,
     backgroundColor: '#1a1a1a',

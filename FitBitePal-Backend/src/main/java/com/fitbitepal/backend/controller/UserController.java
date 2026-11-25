@@ -7,6 +7,7 @@ import com.fitbitepal.backend.dto.UserProfileResponse;
 import com.fitbitepal.backend.model.DietPlan;
 import com.fitbitepal.backend.model.TrainingPlan;
 import com.fitbitepal.backend.model.User;
+import com.fitbitepal.backend.service.ActivityRecordService;
 import com.fitbitepal.backend.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,6 +26,7 @@ import java.util.List;
 public class UserController {
     
     private final UserService userService;
+    private final ActivityRecordService activity;
     
     /**
      * 保存用户画像
@@ -83,6 +85,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(plans));
     }
     
+    @DeleteMapping("/{userId}/diet-plan/{planId}")
+    public ApiResponse<String> removePlannedMeal(@PathVariable Long userId, @PathVariable Long planId) {
+        activity.hidePlannedMeal(userId, planId);
+        return ApiResponse.success("Meal removed");
+    }
+
     /**
      * 更新用户基本信息（用户名、电话号码）
      */

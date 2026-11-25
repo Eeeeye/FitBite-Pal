@@ -1,0 +1,15 @@
+global:
+  smtp_smarthost: 'release-inbox:1025'
+  smtp_from: 'alerts@fitbite.test'
+  smtp_require_tls: false
+route:
+  receiver: rehearsal
+  group_by: [alertname, instance]
+  group_wait: 5s
+  group_interval: 10s
+  repeat_interval: 4h
+receivers:
+  - name: rehearsal
+    email_configs:
+      - to: 'oncall@fitbite.test'
+        send_resolved: true

@@ -8,8 +8,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SERVER_CONFIG_KEY = '@fitbitepal_server_config';
 
 // 默认服务器地址（构建时的地址）
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL || '';
-const DEFAULT_SERVER_IP = '10.49.118.63';
+import { apiEndpoint } from './apiOrigin';
+export const canConfigureServer = typeof __DEV__ !== 'undefined' && __DEV__;
+const page = typeof window !== 'undefined' ? window.location : undefined;
+const suppliedUrl = process.env.EXPO_PUBLIC_API_URL || (page?.origin && page.origin !== 'null' ? page.origin : '');
+const DEFAULT_API_URL = suppliedUrl ? apiEndpoint(suppliedUrl, {
+  development: canConfigureServer, pageHostname: page?.hostname,
+}) : '';
+if (!DEFAULT_API_URL && !canConfigureServer) {
+  throw new Error('Missing release API address.');
+}
+const DEFAULT_SERVER_IP = '127.0.0.1';
 const DEFAULT_SERVER_PORT = '8080';
 
 const getDefaultServerConfig = () => {
@@ -42,6 +51,7 @@ let cachedConfig = null;
  * 获取服务器配置
  */
 export const getServerConfig = async () => {
+  if (!canConfigureServer) return getDefaultServerConfig();
   if (cachedConfig) {
     return cachedConfig;
   }
@@ -65,6 +75,7 @@ export const getServerConfig = async () => {
  * 保存服务器配置
  */
 export const saveServerConfig = async (ip, port = '8080', customUrl = '', useCustomUrl = false) => {
+  if (!canConfigureServer) return false;
   const config = { ip, port, customUrl, useCustomUrl };
   try {
     await AsyncStorage.setItem(SERVER_CONFIG_KEY, JSON.stringify(config));

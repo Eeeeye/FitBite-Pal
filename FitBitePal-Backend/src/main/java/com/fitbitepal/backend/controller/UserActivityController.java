@@ -2,6 +2,8 @@ package com.fitbitepal.backend.controller;
 
 import com.fitbitepal.backend.dto.*;
 import com.fitbitepal.backend.service.CheckInService;
+import com.fitbitepal.backend.service.GoalService;
+import com.fitbitepal.backend.dto.GoalProgress;
 import com.fitbitepal.backend.service.TrainingAdjustmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UserActivityController {
     private final CheckInService checkIns;
+    private final GoalService goals;
+
+    @PatchMapping("/goals")
+    public ApiResponse<GoalProgress> updateGoals(@PathVariable Long userId, @Valid @RequestBody GoalUpdateRequest request) {
+        return ApiResponse.success(goals.update(userId, request));
+    }
     private final TrainingAdjustmentService adjustments;
 
     @PostMapping("/check-in")

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { t } from '../../services/i18n';
 import { 
+  canConfigureServer,
   getServerConfig, 
   saveServerConfig, 
   testServerConnection,
@@ -118,14 +119,14 @@ export const SplashScreen = ({ navigation }) => {
   return (
     <View style={styles.splashContainer}>
       {/* 右上角设置按钮 */}
-      <SafeAreaView style={styles.settingsButtonContainer}>
+      {canConfigureServer && <SafeAreaView style={styles.settingsButtonContainer}>
         <TouchableOpacity 
           style={styles.settingsButton}
           onPress={() => setShowSettings(true)}
         >
           <Text style={styles.settingsButtonText}>⚙️</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </SafeAreaView>}
 
       {/* Logo图标 */}
       <Image

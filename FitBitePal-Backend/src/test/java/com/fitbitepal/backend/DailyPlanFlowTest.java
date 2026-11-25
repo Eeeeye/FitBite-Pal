@@ -11,12 +11,11 @@ import com.fitbitepal.backend.service.UserService;
 import com.fitbitepal.backend.scheduler.PlanGenerationScheduler;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
-import org.springframework.scheduling.support.ScheduledMethodRunnable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -40,8 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @Import(BackendFlowTest.LocalCache.class)
 class DailyPlanFlowTest {
-    @MockBean FoodItemInitializer foodInitializer;
-    @MockBean ExerciseInitializer exerciseInitializer;
+    @MockitoBean FoodItemInitializer foodInitializer;
+    @MockitoBean ExerciseInitializer exerciseInitializer;
     @Autowired UserRepository users;
     @Autowired MealSetRepository menu;
     @Autowired TrainingPlanRepository training;
@@ -163,12 +162,10 @@ class DailyPlanFlowTest {
                 today.minusDays(1).atTime(12, 0), entry.getId());
         var jobs = scheduledJobs.getScheduledTasks().stream()
                 .map(task -> task.getTask().getRunnable())
-                .filter(ScheduledMethodRunnable.class::isInstance)
-                .map(ScheduledMethodRunnable.class::cast)
-                .filter(job -> job.getTarget() instanceof PlanGenerationScheduler)
+                .filter(job -> job.toString().startsWith(PlanGenerationScheduler.class.getName() + "."))
                 .toList();
         assertThat(jobs).isNotEmpty();
-        jobs.forEach(ScheduledMethodRunnable::run);
+        jobs.forEach(Runnable::run);
         assertThat(manualDiet.findByUserIdAndRecordedAtBetween(user.getId(),
                 today.minusDays(1).atStartOfDay(), today.atStartOfDay()))
                 .extracting(DietRecord::getId).containsExactly(entry.getId());

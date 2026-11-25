@@ -26,6 +26,9 @@ public class DietPlan {
     @Column(nullable = false)
     private Long userId;
     
+    @Column(nullable = false)
+    private boolean hidden;
+
     // 计划日期
     private LocalDate planDate;
     

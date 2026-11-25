@@ -1,4 +1,4 @@
--- FitBite backend, MySQL 8.0.16+ (current application schema through V9).
+-- FitBite backend, MySQL 8.0.16+ (current application schema through V11).
 -- Apply once to the selected empty database. Existing installations use versioned migrations.
 
 CREATE TABLE `calorie_records` (
@@ -18,6 +18,7 @@ CREATE TABLE `check_in_records` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL,
   `check_in_date` date NOT NULL,
+  `body_fat_rate` double DEFAULT NULL,
   `height` double DEFAULT NULL,
   `weight` double DEFAULT NULL,
   `created_at` datetime(6) DEFAULT NULL,
@@ -31,19 +32,22 @@ CREATE TABLE `completion_records` (
   `record_date` date NOT NULL,
   `calories` int DEFAULT NULL,
   `completed` bit(1) NOT NULL,
-  `item_index` int NOT NULL,
+  `item_index` int DEFAULT NULL,
+  `meal_key` varchar(40) DEFAULT NULL,
   `created_at` datetime(6) NOT NULL,
   `updated_at` datetime(6) NOT NULL,
   `item_type` varchar(20) NOT NULL,
   `item_name` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `UKbollmg0ivcgw4bqxltst0keje` (`user_id`,`record_date`,`item_type`,`item_index`)
+  UNIQUE KEY `UKbollmg0ivcgw4bqxltst0keje` (`user_id`,`record_date`,`item_type`,`item_index`),
+  UNIQUE KEY `uk_completion_meal` (`user_id`,`record_date`,`item_type`,`meal_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `diet_plans` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL,
   `plan_date` date DEFAULT NULL,
+  `hidden` boolean NOT NULL DEFAULT FALSE,
   `calories` int DEFAULT NULL,
   `carbs` int DEFAULT NULL,
   `fat` int DEFAULT NULL,
@@ -70,7 +74,8 @@ CREATE TABLE `diet_records` (
   `food_name` varchar(100) NOT NULL,
   `image_url` varchar(500) DEFAULT NULL,
   `notes` text,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_diet_record_user_time` (`user_id`,`recorded_at`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `exercises` (
@@ -207,6 +212,8 @@ CREATE TABLE `users` (
   `body_fat_rate` double DEFAULT NULL,
   `goal_body_fat_rate` double DEFAULT NULL,
   `goal_weight` double DEFAULT NULL,
+  `goal_weight_start` double DEFAULT NULL,
+  `goal_body_fat_start` double DEFAULT NULL,
   `height` double DEFAULT NULL,
   `recommended_carbs` int DEFAULT NULL,
   `recommended_fat` int DEFAULT NULL,

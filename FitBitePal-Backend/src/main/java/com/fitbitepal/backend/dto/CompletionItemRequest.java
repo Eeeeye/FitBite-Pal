@@ -13,8 +13,17 @@ import lombok.Setter;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class CompletionItemRequest {
-    @NotNull @PositiveOrZero
+    @PositiveOrZero
     private Integer itemIndex;
+    @jakarta.validation.constraints.Pattern(regexp = "(plan|record):[1-9][0-9]{0,18}")
+    private String mealKey;
+
+    @jakarta.validation.constraints.AssertTrue(message = "An item index or meal key is required")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isIdentified() {
+        return itemIndex != null || mealKey != null;
+    }
+
     @NotNull
     private Boolean completed;
     @Size(max = 100)

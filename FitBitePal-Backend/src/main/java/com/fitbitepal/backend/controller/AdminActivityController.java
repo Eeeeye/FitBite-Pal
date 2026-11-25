@@ -4,6 +4,7 @@ import com.fitbitepal.backend.model.*;
 import com.fitbitepal.backend.repository.*;
 import com.fitbitepal.backend.service.UserService;
 import com.fitbitepal.backend.service.CompletionService;
+import com.fitbitepal.backend.service.AICalculationService;
 import com.fitbitepal.backend.dto.CompletionItemRequest;
 import com.fitbitepal.backend.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class AdminActivityController {
     private final CalorieRecordRepository calorieRecordRepository;
     private final CompletionService completions;
     private final UserService userService;
+    private final AICalculationService metrics;
 
     @PostMapping("/users/{userId}/check-ins")
     public ResponseEntity<ApiResponse<CheckInRecord>> saveUserCheckIn(
@@ -38,11 +40,10 @@ public class AdminActivityController {
 
         record.setUserId(userId);
         record.setCheckInDate(checkInDate);
-        record.setWeight(parseDoubleNullable(request.get("weight")));
-        record.setHeight(parseDoubleNullable(request.get("height")));
+        updateMeasurements(record, parseDoubleNullable(request.get("weight")), parseDoubleNullable(request.get("height")));
 
         CheckInRecord saved = checkInRecordRepository.save(record);
-        syncCurrentWeightForToday(user, checkInDate, saved.getWeight());
+        syncCurrentMeasurement(user, saved);
         userService.evictAllUserCaches(userId);
 
         return ResponseEntity.ok(ApiResponse.success(saved));
@@ -72,16 +73,14 @@ public class AdminActivityController {
                     throw new IllegalArgumentException("Check-in already exists for this date");
                 });
 
+        if (!Objects.equals(checkInDate, record.getCheckInDate())) record.setBodyFatRate(null);
         record.setCheckInDate(checkInDate);
-        if (request.containsKey("weight")) {
-            record.setWeight(parseDoubleNullable(request.get("weight")));
-        }
-        if (request.containsKey("height")) {
-            record.setHeight(parseDoubleNullable(request.get("height")));
-        }
+        updateMeasurements(record,
+                request.containsKey("weight") ? parseDoubleNullable(request.get("weight")) : record.getWeight(),
+                request.containsKey("height") ? parseDoubleNullable(request.get("height")) : record.getHeight());
 
         CheckInRecord saved = checkInRecordRepository.save(record);
-        syncCurrentWeightForToday(user, checkInDate, saved.getWeight());
+        syncCurrentMeasurement(user, saved);
         userService.evictAllUserCaches(userId);
 
         return ResponseEntity.ok(ApiResponse.success(saved));
@@ -113,7 +112,11 @@ public class AdminActivityController {
         LocalDate date = parseLocalDate(request.get("recordDate"));
         String type = parseRequiredString(request.get("itemType"), "itemType");
         CompletionItemRequest item = new CompletionItemRequest();
-        item.setItemIndex(parseIntegerRequired(request.get("itemIndex"), "itemIndex"));
+        item.setMealKey(parseStringNullable(request.get("mealKey")));
+        item.setItemIndex(parseIntegerNullable(request.get("itemIndex")));
+        if (item.getItemIndex() == null && item.getMealKey() == null) {
+            throw new IllegalArgumentException("Supply an itemIndex or mealKey");
+        }
         item.setCompleted(parseBooleanRequired(request.get("completed"), "completed"));
         item.setItemName(parseStringNullable(request.get("itemName")));
         item.setCalories(parseIntegerNullable(request.get("calories")));
@@ -143,19 +146,23 @@ public class AdminActivityController {
         String itemType = request.containsKey("itemType")
                 ? parseRequiredString(request.get("itemType"), "itemType")
                 : record.getItemType();
-        Integer itemIndex = request.containsKey("itemIndex")
-                ? parseIntegerRequired(request.get("itemIndex"), "itemIndex")
-                : record.getItemIndex();
-
-        completionRecordRepository.findByUserIdAndRecordDateAndItemTypeAndItemIndex(userId, recordDate, itemType, itemIndex)
-                .filter(existing -> !Objects.equals(existing.getId(), recordId))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Completion record already exists for this slot");
-                });
-
-        record.setRecordDate(recordDate);
-        record.setItemType(itemType);
-        record.setItemIndex(itemIndex);
+        if (record.getMealKey() != null) {
+            if (!recordDate.equals(record.getRecordDate()) || !itemType.equals(record.getItemType())
+                    || request.get("itemIndex") != null
+                    || (request.containsKey("mealKey") && !record.getMealKey().equals(request.get("mealKey")))) {
+                throw new IllegalArgumentException("A bound meal's date and identity cannot be changed");
+            }
+        } else {
+            if (request.get("mealKey") != null) throw new IllegalArgumentException("Use completion/save to select a meal");
+            Integer itemIndex = request.containsKey("itemIndex")
+                    ? parseIntegerRequired(request.get("itemIndex"), "itemIndex") : record.getItemIndex();
+            completionRecordRepository.findByUserIdAndRecordDateAndItemTypeAndItemIndex(userId, recordDate, itemType, itemIndex)
+                    .filter(existing -> !Objects.equals(existing.getId(), recordId))
+                    .ifPresent(existing -> { throw new IllegalArgumentException("Completion already exists for this slot"); });
+            record.setRecordDate(recordDate);
+            record.setItemType(itemType);
+            record.setItemIndex(itemIndex);
+        }
         if (request.containsKey("completed")) {
             record.setCompleted(parseBooleanRequired(request.get("completed"), "completed"));
         }
@@ -286,14 +293,28 @@ public class AdminActivityController {
         if (request.containsKey("height")) {
             user.setHeight(parseDoubleNullable(request.get("height")));
         }
-        if (request.containsKey("bodyFatRate")) {
-            user.setBodyFatRate(parseDoubleNullable(request.get("bodyFatRate")));
+        if (request.containsKey("bodyFatRate") || request.containsKey("weight") || request.containsKey("height")) {
+            if (request.containsKey("bodyFatRate")) {
+                user.setBodyFatRate(parseDoubleNullable(request.get("bodyFatRate")));
+            } else {
+                metrics.calculateIfComplete(user);
+            }
+            checkInRecordRepository.findByUserIdAndCheckInDate(userId, LocalDate.now())
+                    .ifPresent(row -> row.setBodyFatRate(user.getBodyFatRate()));
         }
         if (request.containsKey("goalWeight")) {
-            user.setGoalWeight(parseDoubleNullable(request.get("goalWeight")));
+            Double target = parseDoubleNullable(request.get("goalWeight"));
+            if (target != null && (!Double.isFinite(target) || target < 30 || target > 300)) {
+                throw new IllegalArgumentException("Weight target must be 30 to 300 kg");
+            }
+            user.setGoalWeight(target);
         }
         if (request.containsKey("goalBodyFatRate")) {
-            user.setGoalBodyFatRate(parseDoubleNullable(request.get("goalBodyFatRate")));
+            Double target = parseDoubleNullable(request.get("goalBodyFatRate"));
+            if (target != null && (!Double.isFinite(target) || target <= 0 || target > 100)) {
+                throw new IllegalArgumentException("Body-fat target must be greater than 0 and at most 100");
+            }
+            user.setGoalBodyFatRate(target);
         }
         if (request.containsKey("targetCalories")) {
             user.setTargetCalories(parseIntegerNullable(request.get("targetCalories")));
@@ -364,10 +385,21 @@ public class AdminActivityController {
         return value == null ? null : value.toString().trim();
     }
 
-    private void syncCurrentWeightForToday(User user, LocalDate date, Double weight) {
-        if (weight != null && LocalDate.now().equals(date)) {
-            user.setWeight(weight);
-            userRepository.save(user);
+    private void updateMeasurements(CheckInRecord record, Double weight, Double height) {
+        if (!Objects.equals(weight, record.getWeight()) || !Objects.equals(height, record.getHeight())) {
+            record.setBodyFatRate(null);
+        }
+        record.setWeight(weight);
+        record.setHeight(height);
+    }
+
+    private void syncCurrentMeasurement(User user, CheckInRecord record) {
+        if (LocalDate.now().equals(record.getCheckInDate())) {
+            if (record.getWeight() != null) user.setWeight(record.getWeight());
+            if (record.getHeight() != null) user.setHeight(record.getHeight());
+            if ((record.getWeight() != null || record.getHeight() != null) && metrics.calculateIfComplete(user)) {
+                record.setBodyFatRate(user.getBodyFatRate());
+            }
         }
     }
 }

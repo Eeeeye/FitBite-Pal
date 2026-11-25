@@ -14,5 +14,5 @@ services:
       mailpit:
         condition: service_started
     environment:
-      SPRING_PROFILES_ACTIVE: localmail
+      SPRING_PROFILES_ACTIVE: prod,localmail
       FITBITE_MAILPIT_HOST: mailpit

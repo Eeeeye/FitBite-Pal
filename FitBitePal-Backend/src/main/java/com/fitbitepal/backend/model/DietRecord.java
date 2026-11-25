@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
  * 饮食记录实体
  */
 @Entity
-@Table(name = "diet_records")
+@Table(name = "diet_records", indexes = @Index(
+        name = "idx_diet_record_user_time", columnList = "user_id, recorded_at, id"))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

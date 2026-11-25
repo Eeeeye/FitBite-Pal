@@ -26,6 +26,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("select u from User u where u.id = :id")
     Optional<User> findForUpdate(@Param("id") Long id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select u from User u where (:admin = true or u.id = :actor)
+              and u.id = (select d.userId from DietRecord d where d.id = :recordId)
+            """)
+    Optional<User> lockDietOwner(Long recordId, Long actor, boolean admin);
+
     Optional<User> findByUsername(String username);
     
     Optional<User> findByEmail(String email);

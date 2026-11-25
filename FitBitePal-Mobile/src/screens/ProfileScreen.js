@@ -10,6 +10,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import { confirmLocalAction } from '../utils/confirmLocalAction';
 import { useAuth, useUserProfile, useAppState, useData } from '../contexts';
 import { updateBasicInfo as updateBasicInfoApi, saveUserProfile as saveUserProfileApi } from '../api/user';
 import { 
@@ -27,6 +28,7 @@ export const ProfileScreen = ({ navigation }) => {
   const { currentLanguage, setCurrentLanguage, fontSize, setFontSize, fontSizeConfig, setFontSizeConfig, screenReaderEnabled } = useAppState();
   const { loadStatistics, loadWeightRecords } = useData();
 
+  const [logoutError, setLogoutError] = useState(false);
   const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -80,24 +82,13 @@ export const ProfileScreen = ({ navigation }) => {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      currentLanguage === 'zh' ? '确认退出' : 'Confirm Logout',
-      currentLanguage === 'zh' ? '确定要退出登录吗？' : 'Are you sure you want to sign out?',
-      [
-        { text: currentLanguage === 'zh' ? '取消' : 'Cancel', style: 'cancel' },
-        {
-          text: currentLanguage === 'zh' ? '退出' : 'Sign out',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            Alert.alert(
-              currentLanguage === 'zh' ? '已退出' : 'Signed Out',
-              currentLanguage === 'zh' ? '您已成功退出登录' : 'You have been signed out successfully'
-            );
-          }
-        }
-      ]
-    );
+    const zh = currentLanguage === 'zh';
+    confirmLocalAction(zh ? '确认退出' : 'Confirm logout',
+      zh ? '确定要退出登录吗？' : 'Sign out of this account?',
+      zh ? '取消' : 'Cancel', zh ? '退出' : 'Sign out', async () => {
+        setLogoutError(false);
+        try { await logout(); } catch { setLogoutError(true); }
+      });
   };
 
   return (
@@ -544,7 +535,7 @@ export const ProfileScreen = ({ navigation }) => {
           </Text>
           <View style={styles.divider} />
 
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} accessibilityRole="button" onPress={() => navigation.navigate('Privacy')}>
             <View style={styles.settingLeft}>
               <Image
                 source={require('../../assets/images/69d94bedcdb939ee1750466c04ee43e7.png')}
@@ -559,6 +550,8 @@ export const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
+        {logoutError && <Text style={styles.settingLabel} accessibilityRole="alert">{currentLanguage === 'zh'
+          ? '无法清除登录凭证，请重试退出。' : 'Could not remove the saved credential. Please try signing out again.'}</Text>}
         {/* Sign Out Button */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
           <Text style={styles.signOutText}>

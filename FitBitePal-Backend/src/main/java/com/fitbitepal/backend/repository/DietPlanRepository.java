@@ -15,9 +15,11 @@ public interface DietPlanRepository extends JpaRepository<DietPlan, Long> {
     
     Optional<DietPlan> findByUserId(Long userId);
     
+    @Query("select p from DietPlan p where p.userId = ?1 and p.hidden = false order by p.mealTime, p.id")
     List<DietPlan> findByUserIdOrderByMealTimeAsc(Long userId);
     
     // 按日期查询饮食计划
+    @Query("select p from DietPlan p where p.userId = ?1 and p.planDate = ?2 order by p.mealTime, p.id")
     List<DietPlan> findByUserIdAndPlanDateOrderByMealTimeAsc(Long userId, LocalDate planDate);
     
     // 按日期范围查询
