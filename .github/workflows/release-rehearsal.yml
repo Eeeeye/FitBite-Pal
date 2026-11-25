@@ -105,7 +105,7 @@ jobs:
           set -euo pipefail
           npm install --prefix "$RUNNER_TEMP/web-browser" --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.56.1
           node "$RUNNER_TEMP/web-browser/node_modules/playwright-core/cli.js" install --with-deps --only-shell chromium
-      - name: Verify six Web member flows against the candidate JAR
+      - name: Verify Web member flows against the candidate JAR
         env:
           SPRING_PROFILES_ACTIVE: prod,localmail
           SPRING_DATASOURCE_URL: 'jdbc:mysql://127.0.0.1:3306/web_smoke_rc?useSSL=false&allowPublicKeyRetrieval=true'

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { randomUUID, randomBytes } = require('node:crypto');
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const verifyDeletionPage = require('./web-account-deletion.cjs');
+const { olderMessages, verifyChat } = require('./web-chat.cjs');
 
 function localUrl(input) {
   const url = new URL(input);
@@ -94,9 +95,10 @@ async function main() {
   try {
     await page.goto(web);
     // Seed local fixtures before signing in. No messages are transmitted to an AI service.
-    await page.evaluate(({ allKeys, markers }) => allKeys.forEach((k, i) => localStorage.setItem(k,
-      JSON.stringify([{ id: 'sample-' + i, type: 'user', text: markers[i], time: '09:00' }]))),
-      { allKeys: [...keys, legacyKey], markers });
+    await page.evaluate(({ allKeys, markers, history }) => allKeys.forEach((k, i) => {
+      const marker = { id: 'sample-' + i, type: 'user', text: markers[i], time: '09:00' };
+      localStorage.setItem(k, JSON.stringify(i === 0 ? [...history, marker] : [marker]));
+    }), { allKeys: [...keys, legacyKey], markers, history: olderMessages() });
     await login(members[0]);
     await openStats();
     await page.getByLabel(/^(Edit goals|编辑目标)$/).click();
@@ -142,6 +144,7 @@ async function main() {
 
     await openChat();
     await exact(markers[0]).waitFor();
+    await verifyChat(page, api);
     assert.equal(await exact(markers[1]).count(), 0);
     assert.equal(await exact(markers[2]).count(), 0);
     await backFromChat();

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Image, StyleSheet } from 'react-native';
+import { Image, Platform, StyleSheet } from 'react-native';
 import { useAppState, useAuth } from '../contexts';
 import { UserProfileProvider } from '../contexts/UserProfileContext';
 import { ChatProvider } from '../hooks/useChat';
@@ -135,7 +135,11 @@ const MainStack = () => {
       <Stack.Screen name="PoseHistory" component={PoseHistoryScreen} />
       <Stack.Screen name="PoseHistoryDetail" component={PoseHistoryDetailScreen} />
       <Stack.Screen name="FoodRecognition" component={FoodRecognitionScreen} />
-      <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={Platform.OS === 'web' ? { cardStyle: styles.webChatCard } : undefined}
+      />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
       <Stack.Screen name="CheckIn" component={CheckInScreen} />
       <Stack.Screen name="Summary" component={SummaryScreen} />
@@ -156,6 +160,8 @@ export const MainNavigator = () => {
 };
 
 const styles = StyleSheet.create({
+  // Keep chat within its navigator so the message list owns scrolling on web.
+  webChatCard: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: '#000' },
   tabBar: {
     backgroundColor: '#2a2a2a',
     borderTopColor: '#444',

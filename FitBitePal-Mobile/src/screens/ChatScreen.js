@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,8 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { confirmLocalAction } from '../utils/confirmLocalAction';
 import { useChat } from '../hooks';
@@ -24,25 +22,34 @@ export const ChatScreen = ({ navigation }) => {
   const [attachedImage, setAttachedImage] = useState(null);
   const scrollViewRef = useRef(null);
 
-  // Auto scroll to bottom when new messages arrive
-  useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
+  const followLatest = useRef(true);
+  const scrollIfFollowing = () => {
+    if (followLatest.current) scrollViewRef.current?.scrollToEnd({ animated: false });
+  };
+  const trackScrollPosition = ({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    followLatest.current = distanceFromBottom <= 32;
+  };
 
   const canSend = !sendingMessage && (status === 'ready' || status === 'send-error');
   const handleSend = async () => {
     if (!canSend || (!inputText.trim() && !attachedImage)) return;
 
-    // ✨ 保存消息内容（在清空前）
+    followLatest.current = true;
     const messageText = inputText;
     const messageImage = attachedImage;
     
-    // ✨ 立即清空输入框（在发送前，提升用户体验）
     setInputText('');
     setAttachedImage(null);
     
-    // 发送消息
     await sendMessage(messageText, messageImage);
+  };
+
+  const handleWebKeyPress = event => {
+    const key = event.nativeEvent;
+    if (key.key !== 'Enter' || key.shiftKey || key.isComposing || key.keyCode === 229) return;
+    event.preventDefault();
+    if (!key.repeat) handleSend();
   };
 
   const handleAttachImage = async () => {
@@ -95,8 +102,13 @@ export const ChatScreen = ({ navigation }) => {
       {/* Messages */}
       <ScrollView 
         ref={scrollViewRef}
+        testID="chat-history"
         style={styles.aiChatMessages}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.messageContent}
+        onScroll={trackScrollPosition}
+        scrollEventThrottle={16}
+        onLayout={scrollIfFollowing}
+        onContentSizeChange={scrollIfFollowing}
       >
         {messages.map((message) => (
           message.type === 'ai' ? (
@@ -142,8 +154,6 @@ export const ChatScreen = ({ navigation }) => {
             </View>
           </View>
         )}
-
-        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Input Area */}
@@ -179,10 +189,11 @@ export const ChatScreen = ({ navigation }) => {
           )}
           <TextInput
             style={styles.aiChatInput}
-            placeholder="Type your message..."
+            placeholder={currentLanguage === 'zh' ? '输入消息…' : 'Type your message...'}
             placeholderTextColor="#666"
             value={inputText}
             onChangeText={setInputText}
+            onKeyPress={Platform.OS === 'web' ? handleWebKeyPress : undefined}
             multiline
           />
         </View>
@@ -239,6 +250,9 @@ const styles = StyleSheet.create({
   },
   aiChatMessages: {
     flex: 1,
+    minHeight: 0,
+  },
+  messageContent: {
     paddingHorizontal: 20,
     paddingTop: 20,
   },
