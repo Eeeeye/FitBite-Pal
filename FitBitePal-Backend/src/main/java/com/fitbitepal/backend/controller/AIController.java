@@ -39,8 +39,8 @@ public class AIController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/test")
-    public ApiResponse<String> testArk() {
+    public ApiResponse<String> testConnection() {
         ai.testConnection();
-        return ApiResponse.success("Ark AI 连接成功");
+        return ApiResponse.success("AI 连接成功");
     }
 }

@@ -4,41 +4,50 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fitbitepal.backend.dto.FoodRecognitionResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
-/**
- * 火山方舟 AI 服务
- * 使用 OpenAI 兼容的 Chat Completions 接口承载文本与视觉能力。
- */
+/** Text and image requests use the selected provider's Chat Completions API. */
 @Slf4j
 @Service
-public class ArkAIService {
-
+public class ChatCompletionService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final String provider;
+    private final String baseUrl;
+    private final String apiKey;
+    private final String model;
+    private final boolean enabled;
 
-    @Value("${ark.api.base-url:https://ark.cn-beijing.volces.com/api/coding/v3}")
-    private String baseUrl;
-
-    @Value("${ark.api.key:}")
-    private String apiKey;
-
-    @Value("${ark.api.model:doubao-seed-2.0-pro}")
-    private String model;
-
-    @Value("${ark.api.enabled:true}")
-    private boolean enabled;
-
-    public ArkAIService(ObjectMapper objectMapper, @Value("${app.ai.ark.timeout:30000}") int timeoutMs) {
+    public ChatCompletionService(ObjectMapper objectMapper, Environment config) {
+        provider = config.getProperty("app.ai.provider", "ark").trim().toLowerCase(Locale.ROOT);
+        switch (provider) {
+            case "openai" -> {
+                baseUrl = "https://api.openai.com/v1";
+                apiKey = config.getProperty("app.ai.openai.api-key", "").trim();
+                model = config.getProperty("app.ai.openai.model", "gpt-4.1-mini").trim();
+                enabled = true;
+            }
+            case "ark" -> {
+                baseUrl = config.getProperty("ark.api.base-url", "https://ark.cn-beijing.volces.com/api/coding/v3");
+                apiKey = config.getProperty("ark.api.key", "").trim();
+                model = config.getProperty("ark.api.model", "doubao-seed-2.0-pro").trim();
+                enabled = config.getProperty("ark.api.enabled", Boolean.class, true);
+            }
+            default -> throw new IllegalArgumentException("AI_PROVIDER must be ark or openai");
+        }
+        int timeoutMs = config.getProperty("app.ai.ark.timeout", Integer.class, 30000);
         if (timeoutMs < 1) throw new IllegalArgumentException("AI timeout must be positive");
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(timeoutMs);
@@ -49,12 +58,11 @@ public class ArkAIService {
 
     public FoodRecognitionResponse recognizeFood(String imageInput, String language) {
         if (!isHealthy()) {
-            log.warn("Ark AI 服务不可用，跳过食物识别");
             return null;
         }
 
         if (imageInput == null || imageInput.isBlank()) {
-            log.warn("Ark 食物识别缺少图片输入");
+            log.warn("食物识别缺少图片输入");
             return null;
         }
 
@@ -69,7 +77,6 @@ public class ArkAIService {
 
     public String analyzePose(String imageInput, String exerciseName, String language) {
         if (!isHealthy()) {
-            log.warn("Ark AI 服务不可用，跳过姿态分析");
             return null;
         }
 
@@ -79,7 +86,6 @@ public class ArkAIService {
 
     public String getAdvice(String questionType, String question, String context, String language) {
         if (!isHealthy()) {
-            log.warn("Ark AI 服务不可用，跳过文本建议");
             return null;
         }
 
@@ -89,7 +95,6 @@ public class ArkAIService {
 
     public String chat(String message, String imageInput, String language) {
         if (!isHealthy()) {
-            log.warn("Ark AI 服务不可用，跳过对话");
             return null;
         }
 
@@ -104,29 +109,13 @@ public class ArkAIService {
     }
 
     public boolean isHealthy() {
-        if (!enabled) {
-            log.warn("Ark AI 服务未启用");
-            return false;
-        }
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("Ark API Key 未配置");
-            return false;
-        }
-        if (model == null || model.isBlank()) {
-            log.warn("Ark 模型/Endpoint 未配置");
-            return false;
-        }
-        return true;
+        return enabled && !apiKey.isBlank() && !model.isBlank();
     }
 
     public boolean testConnection() {
-        try {
-            String result = sendTextRequest("Reply with OK only.");
-            return result != null && !result.isBlank();
-        } catch (Exception e) {
-            log.warn("Ark connection test failed ({})", e.getClass().getSimpleName());
-            return false;
-        }
+        if (!isHealthy()) return false;
+        String result = sendTextRequest("Reply with OK only.");
+        return result != null && !result.isBlank();
     }
 
     private String sendTextRequest(String textPrompt) {
@@ -161,6 +150,10 @@ public class ArkAIService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", model);
             requestBody.put("stream", false);
+            if (provider.equals("openai")) {
+                requestBody.put("store", false);
+                requestBody.put("max_completion_tokens", 1200);
+            }
 
             Map<String, Object> message = new HashMap<>();
             message.put("role", "user");
@@ -174,7 +167,7 @@ public class ArkAIService {
             String url = baseUrl + "/chat/completions";
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            log.info("发送 Ark 请求: url={}, model={}", url, model);
+            log.debug("Sending chat completion to {} using {}", provider, model);
 
             ResponseEntity<String> response = restTemplate.exchange(
                 url,
@@ -184,20 +177,27 @@ public class ArkAIService {
             );
 
             if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
-                log.warn("Ark AI request failed with HTTP {}", response.getStatusCode());
+                log.warn("{} returned HTTP {}", provider, response.getStatusCode().value());
                 return null;
             }
 
             JsonNode jsonResponse = objectMapper.readTree(response.getBody());
             String aiResponse = jsonResponse.path("choices").path(0).path("message").path("content").asText();
             if (aiResponse == null || aiResponse.isBlank()) {
-                log.warn("Ark AI returned empty content");
+                log.warn("{} returned empty content", provider);
                 return null;
             }
 
             return aiResponse;
+        } catch (RestClientResponseException ex) {
+            // Upstream error bodies can contain submitted content or credential fragments.
+            log.warn("{} returned HTTP {}", provider, ex.getStatusCode().value());
+            return null;
+        } catch (ResourceAccessException ex) {
+            log.warn("{} transport failed ({})", provider, ex.getMostSpecificCause().getClass().getSimpleName());
+            return null;
         } catch (Exception e) {
-            log.warn("Ark AI request failed ({})", e.getClass().getSimpleName());
+            log.warn("{} request failed ({})", provider, e.getClass().getSimpleName());
             return null;
         }
     }
@@ -336,7 +336,7 @@ public class ArkAIService {
                 .totalNutrition(totalNutrition)
                 .build();
         } catch (Exception e) {
-            log.warn("Ark AI returned invalid food recognition JSON");
+            log.warn("{} returned invalid food recognition JSON", provider);
             return null;
         }
     }

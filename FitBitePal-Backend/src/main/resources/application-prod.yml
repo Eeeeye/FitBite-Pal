@@ -132,7 +132,7 @@ app:
   ai:
     enabled: ${AI_ENABLED:true}
     ark:
-      api-key: ${ARK_API_KEY}
+      api-key: ${ARK_API_KEY:}
       endpoint: ${ARK_BASE_URL:https://ark.cn-beijing.volces.com/api/coding/v3}
       timeout: ${AI_TIMEOUT:30000}
   
@@ -147,7 +147,7 @@ app:
 ark:
   api:
     base-url: ${ARK_BASE_URL:https://ark.cn-beijing.volces.com/api/coding/v3}
-    key: ${ARK_API_KEY}
+    key: ${ARK_API_KEY:}
     model: ${ARK_MODEL:doubao-seed-2.0-pro}
     enabled: ${ARK_ENABLED:true}
 

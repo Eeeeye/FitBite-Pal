@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class PoseRecognitionService {
-    private final ArkAIService ark;
+    private final ChatCompletionService provider;
     private final ObjectMapper mapper;
 
     @Value("${app.pose.enabled:false}")
@@ -30,7 +30,7 @@ public class PoseRecognitionService {
     private boolean demo;
 
     public boolean isHealthy() {
-        return enabled && (demo || (useAi && ark.isHealthy()));
+        return enabled && (demo || (useAi && provider.isHealthy()));
     }
 
     public PoseFeedbackResponse analyzeFrame(PoseFrameRequest request, PoseSession session) {
@@ -39,7 +39,7 @@ public class PoseRecognitionService {
         if (useAi && image != null && !image.isBlank()) {
             String input = image.startsWith("data:image") ? image : "data:image/jpeg;base64," + image;
             String language = request.getLanguage() == null ? "en" : request.getLanguage();
-            String result = ark.analyzePose(input, session.getExerciseName(), language);
+            String result = provider.analyzePose(input, session.getExerciseName(), language);
             if (result != null && !result.isBlank()) {
                 try {
                     return parse(result, request);

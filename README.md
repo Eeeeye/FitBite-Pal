@@ -171,8 +171,13 @@ Common backend values can be configured through Spring environment variables:
 | `MAIL_PORT` | SMTP port |
 | `MAIL_USERNAME` | SMTP username |
 | `MAIL_PASSWORD` | SMTP password or app password |
+| `AI_ENABLED` | Enable chat, nutrition advice, and food recognition |
+| `AI_PROVIDER` | Backend provider, `ark` (default) or `openai` |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | Server-side OpenAI project key with Chat Completions request access, and a text/vision model (default `gpt-4.1-mini`) |
 | `ARK_API_KEY` | Optional Ark API key |
 | `ARK_ENABLED` | Enable or disable Ark-backed features |
+
+For OpenAI, set `AI_ENABLED=true` and `AI_PROVIDER=openai` and supply `OPENAI_API_KEY` to the backend. The same provider handles text and images, including pose analysis when enabled. `/api/ai/health` checks local configuration. A signed-in chat request verifies model access and billing.
 
 For Docker-based deployment, copy `env.docker.example` to `.env` and adjust the values before starting the services.
 

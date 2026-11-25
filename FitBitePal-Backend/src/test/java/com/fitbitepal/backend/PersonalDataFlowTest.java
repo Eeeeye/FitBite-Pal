@@ -19,7 +19,7 @@ import com.fitbitepal.backend.repository.CheckInRecordRepository;
 import com.fitbitepal.backend.repository.CompletionRecordRepository;
 import com.fitbitepal.backend.repository.PoseSessionRepository;
 import com.fitbitepal.backend.repository.UserRepository;
-import com.fitbitepal.backend.service.ArkAIService;
+import com.fitbitepal.backend.service.ChatCompletionService;
 import com.fitbitepal.backend.service.PoseSessionService;
 import com.fitbitepal.backend.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +57,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PersonalDataFlowTest {
     @MockitoBean FoodItemInitializer foods;
     @MockitoBean ExerciseInitializer exercises;
-    @MockitoBean ArkAIService ark;
+    @MockitoBean ChatCompletionService provider;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
@@ -281,7 +281,7 @@ class PersonalDataFlowTest {
                 .andExpect(status().isNotFound());
         mvc.perform(post("/pose/frame").header("Authorization", token).contentType(APPLICATION_JSON).content(frame))
                 .andExpect(status().isServiceUnavailable());
-        when(ark.analyzePose(anyString(), anyString(), anyString())).thenReturn("{\"score\":82,\"issues\":[],\"suggestions\":[]}");
+        when(provider.analyzePose(anyString(), anyString(), anyString())).thenReturn("{\"score\":82,\"issues\":[],\"suggestions\":[]}");
         mvc.perform(post("/pose/frame").header("Authorization", token).contentType(APPLICATION_JSON).content(frame))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.score").value(82))
                 .andExpect(jsonPath("$.data.demo").value(false));
@@ -307,12 +307,12 @@ class PersonalDataFlowTest {
                 .andExpect(jsonPath("$.success").value(false)).andExpect(jsonPath("$.data").doesNotExist());
         var advice = post("/ai/advice").header("Authorization", token).contentType(APPLICATION_JSON);
         mvc.perform(advice.content("{\"question\":\"hello\"}")).andExpect(status().isServiceUnavailable());
-        when(ark.isHealthy()).thenReturn(true);
-        when(ark.getAdvice("general", "hello", null, "zh")).thenReturn("provider response");
+        when(provider.isHealthy()).thenReturn(true);
+        when(provider.getAdvice("general", "hello", null, "zh")).thenReturn("provider response");
         mvc.perform(advice.content(json.writeValueAsBytes(Map.of("userId", owner.getId(), "question", "hello"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.personalized").value(false))
                 .andExpect(jsonPath("$.data.advice").value("provider response")).andExpect(jsonPath("$.data.confidence").doesNotExist());
-        when(ark.getAdvice("general", "hello", "training context", "zh")).thenReturn("context-aware response");
+        when(provider.getAdvice("general", "hello", "training context", "zh")).thenReturn("context-aware response");
         mvc.perform(advice.content("{\"question\":\"hello\",\"context\":\"training context\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.personalized").value(true));
         mvc.perform(post("/ai/chat").header("Authorization", token).contentType(APPLICATION_JSON).content("{}"))
