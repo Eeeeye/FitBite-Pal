@@ -1,267 +1,98 @@
 # FitBite Pal
 
-FitBite Pal is a mobile fitness and diet management application built with React Native and Spring Boot. It supports user onboarding, workout and meal planning, check-in records, progress tracking, bilingual content, and a lightweight web-based admin interface.
+FitBite Pal helps members plan a workout, log meals and check-ins, and see how their weight and calorie balance change over time. The bilingual Chinese/English client runs on Android, iOS and the web. A Spring Boot API serves all three clients and a web console for administrators.
 
-The repository is organized as a full-stack project:
+## Try it locally
 
-- `FitBitePal-Mobile`: React Native / Expo mobile client
-- `FitBitePal-Backend`: Spring Boot REST API and admin page
-- `docker-compose.yml`: local MySQL, Redis, and backend runtime
+You need Git, Docker with the Compose plugin, Node.js 24 and npm. The commands below use a POSIX shell. Docker runs the Java API, MySQL 8, Redis 7 and Mailpit. The desktop walkthrough works without a model key or an SMTP account.
 
-## Features
-
-- User registration, login, password reset, and JWT-based authentication
-- Profile setup for age, gender, height, weight, activity level, goal, and available training time
-- Workout plan generation, exercise details, training records, and completion tracking
-- Diet plan management, food records, calorie estimation, and meal set support
-- Progress views for weight, calories, check-ins, and training history
-- Pose session recording and feedback endpoints
-- Admin management for users, foods, meal sets, user stats, and system configuration
-- Chinese and English interface text
-
-## Tech Stack
-
-### Mobile
-
-- React Native with Expo SDK 54
-- React Navigation
-- React Context for application state
-- `i18n-js` and `expo-localization`
-- Expo camera and image picker modules
-
-### Backend
-
-- Java 17+
-- Spring Boot 4.1.3
-- Spring Security with JWT
-- Spring Data JPA / Hibernate
-- MySQL 8.0
-- Redis
-- Docker support
-
-### External Services
-
-- SMTP email service for verification and password reset
-- Optional Ark API integration for food recognition
-
-## Repository Structure
-
-```text
-.
-├── FitBitePal-Backend/
-│   ├── src/main/java/com/fitbitepal/backend/
-│   │   ├── config/
-│   │   ├── controller/
-│   │   ├── dto/
-│   │   ├── exception/
-│   │   ├── model/
-│   │   ├── repository/
-│   │   ├── scheduler/
-│   │   ├── security/
-│   │   └── service/
-│   ├── src/main/resources/
-│   │   ├── db/migration/
-│   │   ├── static/admin/
-│   │   ├── application.yml
-│   │   ├── application-dev.yml
-│   │   ├── application-prod.yml
-│   │   └── application-test.yml
-│   ├── Dockerfile
-│   └── pom.xml
-├── FitBitePal-Mobile/
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── contexts/
-│   │   ├── hooks/
-│   │   ├── navigation/
-│   │   ├── screens/
-│   │   └── utils/
-│   ├── assets/
-│   ├── i18n/
-│   ├── services/
-│   ├── app.json
-│   └── package.json
-├── API_DOCUMENTATION.md
-├── DOCKER_DEPLOYMENT.md
-├── TEST_REPORT.md
-├── USER_MANUAL.md
-├── docker-compose.yml
-└── env.docker.example
+```sh
+git clone https://github.com/Eeeeye/FitBite-Pal.git
+cd FitBite-Pal
+cp env.docker.example .env
 ```
 
-## Getting Started
+In the root `.env`, set `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` and `JWT_SECRET` to **three different values**. Run `openssl rand -hex 32` separately for each. Then start the services and wait for the API to become ready.
 
-### Prerequisites
-
-- Node.js 18+
-- Java 17+
-- Maven
-- MySQL 8.0+
-- Redis 6+
-- Docker and Docker Compose, optional but recommended for local services
-
-### Run with Docker Compose
-
-Copy `env.docker.example` to `.env` and set distinct `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD` values. Set `JWT_SECRET` to the output of `openssl rand -hex 32`. For the first admin login, also set `FITBITE_ADMIN_EMAIL` to an address you control and `FITBITE_ADMIN_PASSWORD` to a private password. Then run from the repository root:
-
-```bash
-docker compose -f docker-compose.yml -f compose.mailpit.yml up -d --build
+```sh
+docker compose -f docker-compose.yml -f compose.mailpit.yml up -d --build --wait
+curl -fsS http://127.0.0.1:8080/api/actuator/health/readiness
 ```
 
-The backend will be available at:
+Once readiness reports `UP`, start the web client in the same checkout.
 
-- Local reset email inbox: `http://127.0.0.1:8025` (override with `FITBITE_INBOX_PORT`). See [mail setup](FitBitePal-Backend/EMAIL_CONFIGURATION.md) for authenticated provider delivery.
-- API base URL: `http://localhost:8080/api`
-- Admin page: `http://localhost:8080/api/admin/index.html`
-- Health check: `http://localhost:8080/api/actuator/health`
-
-### Run the Backend Locally
-
-Start MySQL and Redis first, then configure the backend connection values in `FitBitePal-Backend/src/main/resources/application.yml` or through environment variables.
-
-```bash
-cd FitBitePal-Backend
-mvn spring-boot:run
-```
-
-Default backend settings:
-
-| Setting | Default |
-| --- | --- |
-| Server port | `8080` |
-| Context path | `/api` |
-| MySQL database | `fitbitepal` |
-| Redis host | `localhost` |
-
-### Run the Mobile App
-
-```bash
+```sh
 cd FitBitePal-Mobile
-npm install
-cp env.example .env
-npx expo start
+npm ci
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8080/api npm run web -- --port 8081
 ```
 
-Set the mobile API URL in `.env`:
+Open **http://localhost:8081**, register a member, complete the profile and open today's plan. Record a check-in, then open Progress to see it. To try password recovery, request a code and open the local Mailpit inbox at **http://127.0.0.1:8025**.
 
-```text
-EXPO_PUBLIC_API_URL=http://localhost:8080/api
-```
+The environment template allows both loopback web origins on port 8081. If you change the web port, update `CORS_ALLOWED_ORIGINS` in the root `.env` and rerun the Compose command.
 
-When testing on a physical device, replace `localhost` with the LAN IP address of the machine running the backend.
+For the admin console, set `FITBITE_ADMIN_EMAIL` and `FITBITE_ADMIN_PASSWORD` before provisioning the first administrator. Sign in as `admin` at **http://127.0.0.1:8080/api/admin/index.html**. Remove the bootstrap password from the environment after provisioning and recreate the backend. To stop the local stack while keeping its data, run `docker compose -f docker-compose.yml -f compose.mailpit.yml down` from the repository root.
 
-## Configuration
+## What you can do
 
-### Backend Environment Variables
-
-Common backend values can be configured through Spring environment variables:
-
-| Variable | Purpose |
+| Area | Member experience |
 | --- | --- |
-| `SPRING_DATASOURCE_URL` | MySQL JDBC URL |
-| `SPRING_DATASOURCE_USERNAME` | Database username |
-| `SPRING_DATASOURCE_PASSWORD` | Database password |
-| `SPRING_DATA_REDIS_HOST` | Redis host |
-| `SPRING_DATA_REDIS_PORT` | Redis port |
-| `JWT_SECRET` | Required signing key for production and Compose |
-| `FITBITE_ADMIN_EMAIL`, `FITBITE_ADMIN_PASSWORD` | Optional first-start credentials for username `admin`. Remove the bootstrap password after provisioning. Existing accounts keep their credentials. |
-| `JWT_EXPIRATION` | Token lifetime in milliseconds |
-| `MAIL_HOST` | SMTP host |
-| `MAIL_PORT` | SMTP port |
-| `MAIL_USERNAME` | SMTP username |
-| `MAIL_PASSWORD` | SMTP password or app password |
-| `AI_ENABLED` | Enable chat, nutrition advice, and food recognition |
-| `AI_PROVIDER` | Backend provider, `ark` (default) or `openai` |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | Server-side OpenAI project key with Chat Completions request access, and a text/vision model (default `gpt-4.1-mini`) |
-| `ARK_API_KEY` | Optional Ark API key |
-| `ARK_ENABLED` | Enable or disable Ark-backed features |
+| Training and nutrition | Generate daily workout and meal plans, mark items complete, and add food records. Meal completion follows the item when its position in the menu changes. |
+| Goals and progress | Set weight and body-fat goals, track check-ins and review seven days of activity and calorie data. |
+| AI companion | Chat about training and nutrition or submit a food photo for recognition. On the web, Enter sends, Shift+Enter adds a line, and confirming a Chinese input-method candidate keeps the draft. Long conversations scroll independently of the input box. |
+| Account controls | Switch between Chinese and English, reset a password by email, or delete an account from Settings or the web deletion page. Chat history on a shared device is scoped to the signed-in member. |
 
-For OpenAI, set `AI_ENABLED=true` and `AI_PROVIDER=openai` and supply `OPENAI_API_KEY` to the backend. The same provider handles text and images, including pose analysis when enabled. `/api/ai/health` checks local configuration. A signed-in chat request verifies model access and billing.
+### Enable AI
 
-For Docker-based deployment, copy `env.docker.example` to `.env` and adjust the values before starting the services.
+The backend calls the provider for chat, nutrition advice and food recognition. To use OpenAI, add these values to the **root** `.env` and supply your own project key with Chat Completions request access. The key belongs only on the server.
 
-### Mobile Environment Variables
+```dotenv
+AI_ENABLED=true
+AI_PROVIDER=openai
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4.1-mini
+```
 
-| Variable | Purpose |
+Rerun the Compose startup command, sign in and send a message in AI Companion to verify a real model response. `/api/ai/health` checks provider configuration locally. To use Volcengine Ark instead, set `AI_ENABLED=true`, `AI_PROVIDER=ark`, `ARK_API_KEY` and the `ARK_MODEL` available to your account. The client uses the same API for either provider. [Environment template](env.docker.example)
+
+## Engineering and performance
+
+The [Expo client](FitBitePal-Mobile) uses React Native and React Navigation. The [Java 17 API](FitBitePal-Backend) uses Spring Boot 4.1, Spring Security and JPA. MySQL stores member records and plans. Redis caches reads and holds expiring password-reset codes.
+
+One example is the daily training plan. On a cache miss, the API queries MySQL for an existing plan. If the plan is missing, it locks the member row and checks again before generating one. This lets readers open a published plan while another transaction holds that row lock. [Plan reader](FitBitePal-Backend/src/main/java/com/fitbitepal/backend/service/PublishedPlanReader.java)
+
+The following figures come from controlled before/after runs on one ARM64 host with MySQL 8.0.44 and Redis 7.2.7.
+
+| Scenario | Before | After | What changed |
+| --- | ---: | ---: | --- |
+| Home data load, 32 concurrent clients | 44 HTTP calls, 737 ms p95 | 4 calls, 87 ms p95 | Load today's data first and fetch history when opened. [Home benchmark](docs/performance/home-plan.md) |
+| Seven-day progress view, 32 concurrent clients | 4 HTTP calls, 127.5 ms p95 | 1 call, 52.4 ms p95 | Aggregate the same seven days in one authenticated request. [Progress benchmark](docs/performance/progress.md) |
+| Published-plan cache miss during a controlled 100 ms row lock | 0 of 432 reads finished before unlock | 432 of 432 finished before unlock | Read published plans directly. Acquire the member lock only when a plan must be generated. [Lock experiment](docs/performance/home-plan.md#数据库锁) |
+| First authenticated profile reads after an API restart | 286 of 320 succeeded | 320 of 320 succeeded | Initialize and reuse the JWT parser before serving traffic. [Cold-start benchmark](docs/performance/jwt-startup.md) |
+
+The page timings cover local HTTP requests through response validation. Home and progress used warmed services. The cold-start experiment restarted the API ten times per version and sent 32 simultaneous first reads each time. Device rendering, external networks and production traffic are outside these measurements. [Reproduce the experiments](scripts/perf/README.md)
+
+## Tests and releases
+
+| Check | How to run it |
 | --- | --- |
-| `EXPO_PUBLIC_API_URL` | Backend API base URL |
+| Backend regression suite | Run `mvn verify` in `FitBitePal-Backend` with JDK 17 or 21 and Maven. Local tests default to H2. The backend workflow also checks the MySQL baseline and runs integration tests with disposable MySQL, Redis and Mailpit. [Backend workflow](.github/workflows/backend.yml) |
+| Client tests and native bundles | After `npm ci` in `FitBitePal-Mobile`, run `node --test tests/*.test.js`. CI also exports Android and iOS bundles. [Mobile workflow](.github/workflows/mobile.yml) |
+| Browser and recovery checks | The release rehearsal exercises sign-in, goals, meals, account deletion and chat in a browser. It also upgrades a populated database, rolls back and restores from backup. [Rehearsal workflow](.github/workflows/release-rehearsal.yml) · [Recorded candidate results](docs/release-candidate-results.json) |
 
-## API Documentation
+For an Android preview APK or iOS simulator build, configure a reachable HTTPS `EXPO_PUBLIC_API_URL` in the EAS preview environment. Use an Expo account with access to the linked project or link your fork to your own EAS project. From `FitBitePal-Mobile`, run the command for your target. [EAS profiles](FitBitePal-Mobile/eas.json)
 
-See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for endpoint details.
-
-Main endpoint groups:
-
-- `POST /api/auth/*`
-- `/api/users/*`
-- `/api/exercises/*`
-- `/api/plans/*`
-- `/api/records/*`
-- `/api/data/*`
-- `/api/pose/*`
-- `/api/admin/*`
-
-## Additional Documentation
-
-| Document | Description |
-| --- | --- |
-| [USER_MANUAL.md](USER_MANUAL.md) | User guide for the mobile app and admin interface |
-| [API_DOCUMENTATION.md](API_DOCUMENTATION.md) | REST API reference |
-| [重构审计](docs/重构审计.md) | Data integrity, authorization, migration and verification evidence (Chinese) |
-| [Home and published-plan benchmarks](docs/performance/home-plan.md) | Before-and-after latency, throughput, InnoDB lock waits and reproduction steps (Chinese) |
-| [JWT startup benchmark](docs/performance/jwt-startup.md) | Fresh-process authentication errors, latency and first-login checks (Chinese) |
-| [Progress screen benchmark](docs/performance/progress.md) | Page-level requests, SQL counts, response equivalence and latency (Chinese) |
-| [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) | Docker deployment guide |
-| [TEST_REPORT.md](TEST_REPORT.md) | Test cases and results |
-| [SRS.md](SRS.md) | Software requirements specification |
-
-## Build
-
-### Backend
-
-```bash
-cd FitBitePal-Backend
-mvn clean package
+```sh
+npx eas-cli build --platform android --profile preview
+npx eas-cli build --platform ios --profile ios-simulator
 ```
 
-### Android Preview Build
+A fresh MySQL Compose volume installs the [V11 baseline](FitBitePal-Backend/src/main/resources/db/baseline/mysql8.sql). For an existing database, back up first, stop the old writers and apply the [ordered migration scripts](FitBitePal-Backend/src/main/resources/db/migration) after the installed version. An existing V9 database needs V10 followed by V11. Deploy the API before updating the clients.
 
-```bash
-cd FitBitePal-Mobile
-npx eas build -p android --profile preview
-```
+When upgrading from the original demo, rotate the seeded admin password and verify its recovery email before exposing the console. The release guide covers rollback, restore, alert delivery and the remaining public HTTPS and physical-device checks. [Release guide](docs/release-candidate.md)
 
-### iOS Preview Build
+## Documentation
 
-```bash
-cd FitBitePal-Mobile
-npx eas build -p ios --profile preview
-```
+[User manual](USER_MANUAL.md) · [API reference](API_DOCUMENTATION.md) · [Email setup](FitBitePal-Backend/EMAIL_CONFIGURATION.md) · [Refactoring audit](docs/重构审计.md) · [Original requirements](SRS.md)
 
-### Backend verification
-
-Run `mvn verify` in `FitBitePal-Backend` to build the Java 17 application and run its HTTP and persistence regression tests. The default tests use an isolated H2 database. The backend CI job runs the same flows against disposable MySQL 8 and enables Redis 7 tests for expiring and atomically consuming reset codes.
-
-A fresh Compose volume runs the MySQL 8 baseline once. It creates the 13 application tables, including the V10 meal identities and V11 goal measurement fields. Spring starts in schema validation mode. For an empty database managed outside Compose, select the target database and run the same SQL before starting the backend. [MySQL baseline](FitBitePal-Backend/src/main/resources/db/baseline/mysql8.sql)
-
-For a populated database, back up and stop the old application writers. Upgrade from the installed version in order. A V7 database needs V8, V9, V10 and V11. Start the updated backend before distributing the new mobile app. The MySQL image runs the baseline only for an empty data directory. [V8 pose sessions](FitBitePal-Backend/src/main/resources/db/migration/V8__pose_session_lifecycle.sql) · [V9 daily indexes](FitBitePal-Backend/src/main/resources/db/migration/V9__daily_lookup_indexes.sql) · [V10 meal identity](FitBitePal-Backend/src/main/resources/db/migration/V10__stable_meal_completion_keys.sql) · [V11 goal baselines](FitBitePal-Backend/src/main/resources/db/migration/V11__goal_measurement_baselines.sql)
-
-Meal completion keys identify a dated recommendation (`plan:<id>`) or a logged food (`record:<id>`) within its owner's menu. V10 ties historical rows to a source only when owner, date, creation time, label and calories identify it unambiguously in both directions. Unresolved logs retain their original index and count toward history. Old clients can write a visible meal when its position and identifying details still match uniquely. A stale or ambiguous selection returns a validation error.
-
-When reusing a MySQL volume, provision the application account named by `MYSQL_USER` on the FitBite database before switching the backend credentials. The MySQL image provisions this account automatically for an empty volume.
-
-## Security Notes
-
-- For upgrades from the original demo, rotate the previously seeded administrator password and verify its recovery email before exposing the service. Replacing the JWT signing key requires users to sign in again.
-
-- Do not commit real `.env` files, database credentials, SMTP passwords, JWT secrets, or API keys.
-- Use strong `JWT_SECRET` values outside local development.
-- Keep production database and Redis services private to the deployment network.
-- Review CORS settings before production deployment.
-
-## License
-
-This project is for coursework and learning purposes.
-
-正式候选的构建、数据迁移、告警和恢复演练见[发布候选验收](docs/release-candidate.md)。
+FitBite Pal is a coursework and learning project.
